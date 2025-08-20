@@ -1,5 +1,5 @@
 // API configuration for backend integration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8002'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || ' https://4c55c88b52f4.ngrok-free.app'
 
 // API client with error handling
 class ApiClient {
