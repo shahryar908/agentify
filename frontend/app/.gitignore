@@ -1,0 +1,5 @@
+# Ignore reserved Windows filenames
+nul
+CON
+PRN
+AUX

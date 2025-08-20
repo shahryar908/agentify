@@ -1,0 +1,179 @@
+```latex
+\documentclass[11pt, a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage[hidelinks]{hyperref}
+\usepackage{natbib}
+\usepackage{authblk}
+\usepackage{lipsum} % For placeholder text
+
+\title{\textbf{DyCE: A Dynamic, Context-Aware, and Elicitative Framework for Human-Centered Prompt Engineering}}
+\author[1]{Jane Doe}
+\author[2]{John Smith}
+\affil[1]{Department of Computer Science, University of Research}
+\affil[2]{AI Systems Laboratory, Institute of Technology}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+\noindent
+Current research in prompt engineering predominantly focuses on static, one-shot interactions, evaluating Large Language Models (LLMs) on fixed benchmarks. This paradigm overlooks the dynamic, iterative, and collaborative nature of real-world problem-solving, leading to brittle systems that fail to account for crucial socio-technical context and user cognitive load. This paper introduces DyCE: a Dynamic, Context-aware, and Elicitative framework designed to bridge this gap. DyCE integrates two novel components: a Context-Aware Prompt Injection (CAPI) module that automatically enriches user queries with relevant background information, and an Adaptive Clarification Mechanism (ACM) that proactively identifies and resolves prompt ambiguity through targeted dialogue. We propose a mixed-methods evaluation methodology that combines quantitative task performance with qualitative metrics such as user trust and cognitive load. By shifting the focus from system-centric benchmarks to human-centric interaction, the DyCE framework is expected to significantly improve task success rates, reduce user effort, and foster more effective and satisfying human-AI collaboration across diverse domains.
+\end{abstract}
+
+\section{Introduction}
+
+\subsection{Problem Statement}
+The advent of Large Language Models (LLMs) has established prompt engineering as a critical discipline for harnessing their capabilities. However, the prevailing research methodology treats prompting as a static optimization problem: finding the optimal sequence of tokens to elicit a desired output for a predefined task. This approach has led to significant progress but suffers from a fundamental disconnect with real-world usage. In practice, prompting is not a single, perfect incantation but an iterative dialogue—a "messy middle" of refinement, clarification, and recovery from failure. Current evaluation methods, which rely on static benchmarks and programmatic metrics, fail to capture the dynamics of this human-AI interaction, ignoring the user's cognitive load, evolving understanding, and the socio-technical context in which they operate. This results in systems that are powerful in theory but often frustrating and inefficient in practice.
+
+\subsection{Related Work}
+The limitations of the current paradigm are evident across recent literature. Studies such as \citet{paper1} have advanced the field by creating benchmarks for autonomous agents, yet their evaluation remains confined to a narrow set of domains and relies on a binary success/failure metric, overlooking the process of interaction. This domain-specificity is also a limitation in works like \citet{paper5}, which, despite a rigorous component-wise analysis of a RAG system, focuses exclusively on the legal domain, making its findings difficult to generalize.
+
+Furthermore, a significant gap exists between the technical implementation of prompting systems and the rich theoretical understanding of human factors. \citet{paper2} provides a compelling socio-technical framework for requirements engineering, highlighting the influence of organizational roles, user emotions, and trust. These factors are directly analogous to prompt engineering, yet they are conspicuously absent from the evaluation of technical systems. The "expert vs. non-expert" classification in \citet{paper5} serves as a shallow proxy for this much deeper context.
+
+Finally, the lack of human-in-the-loop evaluation is a systemic issue. The reliance on automated metrics like RAGAS or BERTScore \citep{paper5} and the use of closed, proprietary models \citep{paper1, paper5} hinder reproducibility and fail to capture the qualitative aspects of the user experience. While failure analysis \citep{paper1} is a step in the right direction, it analyzes system failure rather than the collaborative human-AI process of recovering from it. Our work aims to directly address these gaps by operationalizing socio-technical context and evaluating the entire interactive loop.
+
+\subsection{Research Objectives and Contributions}
+This paper seeks to shift the paradigm of prompt engineering research from static optimization to dynamic, human-centered collaboration. Our primary contributions are threefold:
+\begin{enumerate}
+    \item \textbf{A Novel Adaptive Framework (DyCE):} We propose a new architecture that explicitly models and supports the interactive nature of prompting. DyCE features a Context-Aware Prompt Injection (CAPI) module to ground interactions in relevant user and task context, and an Adaptive Clarification Mechanism (ACM) to proactively manage ambiguity.
+    \item \textbf{A Mixed-Methods Evaluation Protocol:} We introduce a comprehensive, human-in-the-loop evaluation methodology that moves beyond simple task success rates. It integrates quantitative performance metrics with validated qualitative measures of user trust, cognitive load, and satisfaction.
+    \item \textbf{Empirical Validation Across Domains:} We will conduct an experimental study to demonstrate the effectiveness of the DyCE framework compared to baseline and static prompting approaches across multiple domains, providing evidence for its generalizability and superior performance in realistic scenarios.
+\end{enumerate}
+
+\section{Methodology}
+
+\subsection{The DyCE Framework: Proposed Approach}
+The DyCE framework is designed as a middleware layer between the user and a backbone LLM. Its architecture, depicted in Figure \ref{fig:architecture}, is composed of two core innovative components that manage the flow of information to create a more collaborative interaction.
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=0.9\textwidth]{placeholder.png} % Placeholder for a real diagram
+    \caption{The architecture of the DyCE framework. A user's initial prompt is first enriched by the CAPI module. The LLM processes the enriched prompt. The ACM analyzes the prompt and the LLM's internal state (e.g., confidence scores) to decide if clarification is needed. If so, it engages the user in a clarification sub-dialogue before generating the final response.}
+    \label{fig:architecture}
+\end{figure}
+
+The workflow is as follows:
+\begin{enumerate}
+    \item A user submits an initial prompt.
+    \item The \textbf{Context-Aware Prompt Injection (CAPI)} module intercepts the prompt. It retrieves and prepends relevant contextual information before passing it to the LLM.
+    \item The LLM processes the enriched prompt.
+    \item The \textbf{Adaptive Clarification Mechanism (ACM)} analyzes the prompt for ambiguity and the LLM's pre-generation state (e.g., token probabilities, internal confidence scores).
+    \item If a high degree of ambiguity is detected, the ACM generates a targeted question to the user to resolve it. This initiates a clarification sub-dialogue.
+    \item Once ambiguity is resolved, the final, clarified prompt is sent to the LLM to generate the response.
+\end{enumerate}
+
+\subsection{Technical Details and Innovations}
+
+\subsubsection{Context-Aware Prompt Injection (CAPI)}
+The CAPI module operationalizes the socio-technical factors identified as a key gap \citep{paper2}. It dynamically constructs a "context header" for each prompt by pulling from multiple sources:
+\begin{itemize}
+    \item \textbf{User Profile:} Role (e.g., 'project manager', 'junior developer'), expertise level, and interaction history.
+    \item \textbf{Session History:} Key entities, goals, and constraints identified in the current conversation.
+    \item \textbf{External Knowledge Base:} Relevant documentation, code snippets, or project guidelines retrieved from a vector database based on the prompt's content.
+\end{itemize}
+This process reduces the user's cognitive load by automating the inclusion of necessary context that is often omitted, a common source of failure in static prompting.
+
+\subsubsection{Adaptive Clarification Mechanism (ACM)}
+The ACM addresses the "messy middle" of prompt refinement. It moves beyond simple error handling \citep{paper1} to proactive, collaborative problem-solving. The ACM consists of two parts:
+\begin{enumerate}
+    \item \textbf{Ambiguity Detector:} A lightweight classifier (e.g., a fine-tuned DistilBERT) trained to predict if a given prompt is likely to result in a low-quality or ambiguous response. It is trained on a dataset of prompt-response pairs labeled for quality and clarity.
+    \item \textbf{Question Generator:} If the detector flags a prompt as ambiguous, a secondary LLM call is triggered using a meta-prompt like: "Given the prompt '[user prompt]', what is the single most important question you need to ask to provide a high-quality response? Ask only that question."
+\end{enumerate}
+This mechanism allows the system to fail gracefully and elicit the necessary information, mimicking the clarification process of human experts.
+
+\subsection{Experimental Design}
+We will conduct a within-subjects user study to evaluate the effectiveness of the DyCE framework.
+\begin{itemize}
+    \item \textbf{Participants:} We will recruit 30 participants with varying levels of technical expertise, screened to ensure a balanced distribution.
+    \item \textbf{Tasks:} Participants will complete a series of multi-turn, goal-oriented tasks in three distinct domains: (1) Data Analysis (writing Python code to analyze a dataset), (2) Software Debugging (finding and fixing a bug in a small codebase), and (3) Creative Writing (developing a short story based on a complex set of constraints). These tasks are designed to be non-trivial and likely to require iterative refinement.
+    \item \textbf{Conditions:} Each participant will perform tasks under three different conditions in a counterbalanced order:
+    \begin{enumerate}
+        \item \textbf{Baseline:} Direct interaction with a state-of-the-art LLM (e.g., GPT-4).
+        \item \textbf{Static Prompting:} Interaction with the same LLM, but guided by a state-of-the-art, pre-engineered meta-prompt (e.g., a complex role-playing prompt with chain-of-thought instructions).
+        \item \textbf{DyCE Framework:} Interaction with the LLM mediated by our proposed framework.
+    \end{enumerate}
+    \item \textbf{Procedure:} Participants will use a think-aloud protocol during the tasks. All interactions will be logged. After completing the tasks for each condition, participants will complete a series of questionnaires.
+\end{itemize}
+
+\section{Expected Results}
+
+\subsection{Anticipated Outcomes}
+We hypothesize that the DyCE framework will demonstrate statistically significant improvements over both the Baseline and Static Prompting conditions. Specifically, we expect that DyCE will lead to:
+\begin{enumerate}
+    \item Higher task success rates, particularly on complex tasks requiring contextual knowledge.
+    \item A reduction in the number of turns and overall time required to achieve a successful outcome.
+    \item A higher rate of successful recovery from initial prompt failures.
+    \item Increased user satisfaction, higher perceived trust in the system, and lower cognitive load.
+\end{enumerate}
+
+\subsection{Evaluation Metrics}
+Our mixed-methods approach will leverage a combination of quantitative and qualitative metrics to provide a holistic evaluation.
+\begin{itemize}
+    \item \textbf{Quantitative Performance Metrics:}
+    \begin{itemize}
+        \item \textit{Task Success Rate:} Binary (0/1) score for task completion, judged by predefined criteria.
+        \item \textit{Interaction Efficiency:} Number of user turns and total time to task completion.
+        \item \textit{Failure Recovery Rate:} Percentage of interactions where an initial incorrect response was successfully corrected in subsequent turns.
+    \end{itemize}
+    \item \textbf{Qualitative User-Reported Metrics:}
+    \begin{itemize}
+        \item \textit{Cognitive Load:} Measured using the NASA-TLX (Task Load Index) questionnaire.
+        \item \textit{User Trust:} Measured using a validated Trust in Automation scale.
+        \item \textit{System Usability:} Measured using the System Usability Scale (SUS).
+    \end{itemize}
+    \item \textbf{Qualitative Interaction Analysis:} The think-aloud protocols and chat logs will be thematically analyzed to identify patterns in user strategies, points of frustration, and moments of successful collaboration.
+\end{itemize}
+
+\subsection{Comparison with Existing Approaches}
+The results will be directly compared across the three conditions. We expect the Baseline to perform worst, reflecting the difficulty of unaided prompting. The Static Prompting condition will likely improve upon the baseline but will be shown to be brittle, failing when tasks deviate from the assumptions of the meta-prompt. The DyCE framework is expected to outperform both by dynamically adapting to the user and the task, demonstrating the value of a human-centered, interactive approach over the static methods common in research by \citet{paper1} and \citet{paper5}.
+
+\section{Discussion}
+
+\subsection{Implications of the Proposed Work}
+The successful implementation and validation of the DyCE framework would have significant implications for the field. First, it would provide a concrete technical blueprint for building more collaborative, context-aware, and robust AI systems, moving beyond the limitations of current agentic architectures. Second, our proposed mixed-methods evaluation protocol could serve as a new standard for assessing interactive AI systems, encouraging researchers to look beyond simplistic accuracy metrics and consider the full spectrum of the human experience. Finally, by operationalizing socio-technical theory \citep{paper2}, this work would help bridge the gap between HCI and AI research, fostering the development of technology that is not only powerful but also genuinely usable and helpful.
+
+\subsection{Limitations and Future Work}
+This proposal has several foreseeable limitations. The effectiveness of the CAPI module depends on the availability and quality of contextual data, which may raise privacy concerns that need to be addressed through careful system design. The ACM's ambiguity detector requires a labeled dataset for training, the creation of which can be resource-intensive.
+
+Future work will focus on three key areas. First, we plan to conduct a longitudinal study to understand how users' prompting skills and their mental models of the system evolve over time when using the DyCE framework. Second, we aim to expand the framework's capabilities to support multi-modal inputs, a direction explored in creative domains by \citet{paper4}. Finally, we intend to release an open-source, modular version of the DyCE framework to address the reproducibility challenges highlighted in the literature \citep{paper5} and to provide a platform for other researchers to build upon.
+
+\section{Conclusion}
+The current research landscape in prompt engineering, while fruitful, is constrained by a system-centric focus on static benchmarks that neglects the dynamic, interactive reality of human-AI collaboration. This paper proposes the DyCE framework as a direct response to this gap. By integrating context-aware prompt enrichment and adaptive clarification mechanisms, DyCE is designed to transform the prompting process from a one-shot command into a collaborative dialogue. Through a rigorous, mixed-methods evaluation, we aim to demonstrate that this human-centered approach leads to more effective, efficient, and satisfying outcomes. Ultimately, this work seeks to chart a new course for prompt engineering research, one that places the human-AI relationship at its core.
+
+\bibliographystyle{plainnat}
+\begin{thebibliography}{9}
+
+\bibitem[AuthorA et al.(2023)]{paper1}
+AuthorA, A., AuthorB, B., \& AuthorC, C. (2023).
+\textit{AgentBench: A Benchmark for Autonomous LLM Agents}.
+Proceedings of the Conference on Neural Information Processing Systems.
+
+\bibitem[AuthorD \& AuthorE(2022)]{paper2}
+AuthorD, D., \& AuthorE, E. (2022).
+\textit{The Social Fabric of Requirements Engineering: A Socio-Technical Perspective}.
+IEEE Transactions on Software Engineering.
+
+\bibitem[AuthorF(2023)]{paper3}
+AuthorF, F. (2023).
+\textit{Detecting AI-Generated Text: The Promise and Peril of Watermarking}.
+arXiv preprint arXiv:2301.08375.
+
+\bibitem[AuthorG et al.(2023)]{paper4}
+AuthorG, G., AuthorH, H., \& AuthorI, I. (2023).
+\textit{Co-Creative AI: Human-AI Collaboration in Virtual Reality Design}.
+Proceedings of the ACM Conference on Human Factors in Computing Systems (CHI).
+
+\bibitem[AuthorJ \& AuthorK(2024)]{paper5}
+AuthorJ, J., \& AuthorK, K. (2024).
+\textit{Evaluating Retrieval-Augmented Generation in the Legal Domain: A Component-Wise Analysis}.
+Proceedings of the Annual Meeting of the Association for Computational Linguistics.
+
+\end{thebibliography}
+
+\end{document}
+```

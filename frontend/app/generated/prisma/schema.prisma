@@ -1,0 +1,57 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Agent {
+  id           Int      @id @default(autoincrement())
+  name         String
+  type         String // 'math', 'intelligent', 'custom'
+  description  String?
+  capabilities String? // JSON string of agent capabilities
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  blogs Blog[]
+
+  @@map("agents")
+}
+
+model Blog {
+  id        Int      @id @default(autoincrement())
+  title     String
+  slug      String   @unique
+  excerpt   String?
+  content   String // Markdown content
+  published Boolean  @default(false)
+  tags      String? // Comma-separated tags
+  readTime  Int? // Estimated read time in minutes
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  agentId Int?
+  agent   Agent? @relation(fields: [agentId], references: [id])
+
+  @@map("blogs")
+}
+
+model ChatSession {
+  id        Int      @id @default(autoincrement())
+  sessionId String   @unique
+  agentType String
+  messages  String // JSON string of chat messages
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("chat_sessions")
+}

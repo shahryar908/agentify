@@ -1,0 +1,10 @@
+# AI Researcher Agent Dependencies
+langgraph>=0.0.55
+langchain-core>=0.1.45
+langchain-google-genai>=1.0.0
+PyPDF2>=3.0.1
+requests>=2.31.0
+python-dotenv>=1.0.0
+
+# Optional: Additional dependencies
+pathlib2>=2.3.7

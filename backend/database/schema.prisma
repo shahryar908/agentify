@@ -1,0 +1,107 @@
+// This is your Prisma schema file for the backend blog system
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "./generated/client"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Agent {
+  id          Int      @id @default(autoincrement())
+  name        String
+  type        String   // 'math', 'intelligent', 'autonomous'
+  description String?
+  capabilities String? // JSON string of agent capabilities
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  blogs       Blog[]
+  
+  @@map("agents")
+}
+
+model Blog {
+  id            Int      @id @default(autoincrement())
+  title         String
+  slug          String   @unique
+  excerpt       String?
+  content       String   // Markdown content
+  published     Boolean  @default(false)
+  featured      Boolean  @default(false)
+  tags          String?  // Comma-separated tags
+  category      String?  // Blog category
+  readTime      Int?     // Estimated read time in minutes
+  views         Int      @default(0)
+  likes         Int      @default(0)
+  metaTitle     String?  // SEO meta title
+  metaDescription String? // SEO meta description
+  metaKeywords  String?  // SEO keywords
+  author        String   @default("Developer")
+  authorEmail   String?
+  publishedAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  agentId       Int?
+  agent         Agent?   @relation(fields: [agentId], references: [id])
+  comments      Comment[]
+  
+  @@map("blogs")
+}
+
+model Comment {
+  id          Int      @id @default(autoincrement())
+  content     String
+  author      String
+  email       String?
+  approved    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  blogId      Int
+  blog        Blog     @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  
+  @@map("comments")
+}
+
+model Category {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  color       String?  // Hex color for UI
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("categories")
+}
+
+model Tag {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  slug        String   @unique
+  color       String?  // Hex color for UI
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("tags")
+}
+
+model ChatSession {
+  id          Int      @id @default(autoincrement())
+  sessionId   String   @unique
+  agentType   String
+  messages    String   // JSON string of chat messages
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("chat_sessions")
+}

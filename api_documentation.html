@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agents API Documentation</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+        }
+        .header p {
+            margin: 0.5rem 0 0 0;
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+        .section {
+            background: white;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .section h2 {
+            color: #667eea;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .endpoint {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 0 5px 5px 0;
+        }
+        .method {
+            font-weight: bold;
+            padding: 0.2rem 0.5rem;
+            border-radius: 3px;
+            color: white;
+            font-size: 0.9rem;
+        }
+        .get { background-color: #28a745; }
+        .post { background-color: #007bff; }
+        .delete { background-color: #dc3545; }
+        .code {
+            background: #f4f4f4;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 1rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+            margin: 1rem 0;
+        }
+        .response {
+            background: #e8f5e8;
+            border: 1px solid #28a745;
+            border-radius: 5px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .live-demo {
+            background: linear-gradient(135deg, #ffeaa7 0%, #fab1a0 100%);
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin: 2rem 0;
+            text-align: center;
+        }
+        .live-demo h3 {
+            margin-top: 0;
+            color: #2d3436;
+        }
+        .demo-url {
+            background: white;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            display: inline-block;
+            font-family: monospace;
+            color: #2d3436;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+        .feature-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .feature-card h4 {
+            color: #667eea;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🤖 AI Agents API</h1>
+        <p>RESTful API for managing and executing AI agents with tool capabilities</p>
+    </div>
+
+    <div class="live-demo">
+        <h3>🚀 Live API Server</h3>
+        <p>Your API is running at:</p>
+        <a href="http://localhost:8000" class="demo-url" target="_blank">http://localhost:8000</a>
+        <p><small>Interactive docs available at <a href="http://localhost:8000/docs" target="_blank">http://localhost:8000/docs</a></small></p>
+    </div>
+
+    <div class="section">
+        <h2>📋 API Overview</h2>
+        <p>This FastAPI backend provides endpoints to create, manage, and interact with AI agents that have tool-calling capabilities. Currently supports GroqToolAgent with mathematical operations.</p>
+        
+        <div class="feature-grid">
+            <div class="feature-card">
+                <h4>🔧 Agent Management</h4>
+                <p>Create, list, and delete AI agents with custom configurations</p>
+            </div>
+            <div class="feature-card">
+                <h4>💬 Chat Interface</h4>
+                <p>Send messages to agents and receive intelligent responses</p>
+            </div>
+            <div class="feature-card">
+                <h4>🛠️ Tool Integration</h4>
+                <p>Agents can use mathematical tools for calculations</p>
+            </div>
+            <div class="feature-card">
+                <h4>🌐 CORS Enabled</h4>
+                <p>Ready for frontend integration with CORS middleware</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>🔗 API Endpoints</h2>
+
+        <div class="endpoint">
+            <h3><span class="method get">GET</span> / - Root Endpoint</h3>
+            <p>Get API information and available endpoints</p>
+            <div class="code">
+curl -X GET "http://localhost:8000/"
+            </div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method get">GET</span> /health - Health Check</h3>
+            <p>Check API health status and agent count</p>
+            <div class="code">
+curl -X GET "http://localhost:8000/health"
+            </div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method post">POST</span> /demo/create-sample-agent - Create Demo Agent</h3>
+            <p>Create a sample math agent for testing</p>
+            <div class="code">
+curl -X POST "http://localhost:8000/demo/create-sample-agent"
+            </div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method post">POST</span> /agents - Create Agent</h3>
+            <p>Create a new AI agent with custom configuration</p>
+            <div class="code">
+curl -X POST "http://localhost:8000/agents" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My Custom Agent",
+    "description": "A custom agent for specific tasks",
+    "api_key": "your-groq-api-key"
+  }'
+            </div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method get">GET</span> /agents - List All Agents</h3>
+            <p>Get a list of all created agents</p>
+            <div class="code">
+curl -X GET "http://localhost:8000/agents"
+            </div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method get">GET</span> /agents/{agent_id} - Get Agent Info</h3>
+            <p>Get detailed information about a specific agent</p>
+            <div class="code">
+curl -X GET "http://localhost:8000/agents/{agent_id}"
+            </div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method post">POST</span> /agents/{agent_id}/chat - Chat with Agent</h3>
+            <p>Send a message to an agent and get a response</p>
+            <div class="code">
+curl -X POST "http://localhost:8000/agents/{agent_id}/chat" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "What is 25 + 17?"
+  }'
+            </div>
+            <div class="response">
+                <strong>Example Response:</strong><br>
+                <code>{"response": "25 + 17 = 42", "agent_id": "...", "tools_used": true}</code>
+            </div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method get">GET</span> /agents/{agent_id}/tools - Get Agent Tools</h3>
+            <p>List all available tools for a specific agent</p>
+            <div class="code">
+curl -X GET "http://localhost:8000/agents/{agent_id}/tools"
+            </div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method delete">DELETE</span> /agents/{agent_id} - Delete Agent</h3>
+            <p>Delete a specific agent</p>
+            <div class="code">
+curl -X DELETE "http://localhost:8000/agents/{agent_id}"
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>🧮 Available Tools</h2>
+        <p>The math agent comes with the following built-in tools:</p>
+        <ul>
+            <li><strong>add_numbers</strong> - Add two numbers together</li>
+            <li><strong>multiply_numbers</strong> - Multiply two numbers</li>
+            <li><strong>divide_numbers</strong> - Divide first number by second</li>
+            <li><strong>subtract_numbers</strong> - Subtract second number from first</li>
+            <li><strong>calculate_power</strong> - Calculate base raised to power</li>
+            <li><strong>calculate_square_root</strong> - Calculate square root</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>💻 Frontend Integration</h2>
+        <p>This API is ready for frontend integration. Key features for frontend developers:</p>
+        <ul>
+            <li>✅ CORS enabled for cross-origin requests</li>
+            <li>✅ JSON request/response format</li>
+            <li>✅ RESTful design patterns</li>
+            <li>✅ Detailed error responses</li>
+            <li>✅ OpenAPI documentation at <code>/docs</code></li>
+        </ul>
+
+        <div class="code">
+// Example JavaScript fetch request
+const response = await fetch('http://localhost:8000/agents/{agent_id}/chat', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    message: 'Calculate 15 * 8'
+  })
+});
+
+const result = await response.json();
+console.log(result.response); // "15 * 8 = 120"
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>🚀 Next Steps</h2>
+        <p>Your FastAPI backend is fully functional! Here's what you can do next:</p>
+        <ol>
+            <li><strong>Build a Frontend:</strong> Create a React, Vue, or vanilla JS frontend to interact with these endpoints</li>
+            <li><strong>Add More Agent Types:</strong> Extend the system to support different types of agents</li>
+            <li><strong>Implement Authentication:</strong> Add user authentication and authorization</li>
+            <li><strong>Add Database:</strong> Replace in-memory storage with a persistent database</li>
+            <li><strong>Deploy:</strong> Deploy the API to a cloud service for production use</li>
+        </ol>
+    </div>
+</body>
+</html>
