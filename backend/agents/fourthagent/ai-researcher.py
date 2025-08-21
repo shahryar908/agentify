@@ -89,7 +89,7 @@ class AIResearcherAgent:
             api_key: Google API key (if None, will use environment variable)
         """
         self.llm = ChatGoogleGenerativeAI(
-            model=model_name or os.getenv("MODEL_NAME", "gemini-1.5-flash"),
+            model=model_name or os.getenv("MODEL_NAME", "gemini-2.5-pro"),
             google_api_key=api_key or os.getenv("GOOGLE_API_KEY"),
             temperature=float(os.getenv("TEMPERATURE", "0.1"))
         )
@@ -317,7 +317,7 @@ class AIResearcherAgent:
                 AIMessage(content="Successfully generated research paper proposal")
             )
             
-            print(" Research paper generated")
+            print(" Research paper generated")
             
         except Exception as e:
             print(f"L Error generating paper: {e}")
@@ -332,6 +332,7 @@ class AIResearcherAgent:
     def _create_pdf_node(self, state: ResearchState) -> ResearchState:
         """Node 5: Create PDF from LaTeX content"""
         print(f"\n= Step 5: Creating PDF document")
+        
         print(state["research_proposal"])
         
         try:
@@ -362,7 +363,7 @@ class AIResearcherAgent:
                 AIMessage(content=f"Successfully created PDF at: {pdf_path}")
             )
             
-            print(f" PDF created successfully at: {pdf_path}")
+            print(f"PDF created successfully at: {pdf_path}")
             
         except Exception as e:
             print(f"L Error creating PDF: {e}")

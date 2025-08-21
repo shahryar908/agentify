@@ -1,0 +1,214 @@
+\documentclass[11pt, a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{cite}
+\usepackage{authblk}
+\usepackage{times}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=cyan,
+    citecolor=blue,
+}
+
+\title{\textbf{Symmetry-Aware Neural Inference: A Unified Framework for Multi-Messenger Model Validation in Astrophysics}}
+\author[1]{Jane Doe}
+\author[2]{John Smith}
+\affil[1]{Department of Physics and Astronomy, University of Cambridge}
+\affil[2]{Institute for Advanced Study, Princeton}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+\noindent The advent of multi-messenger astronomy, spearheaded by facilities like the James Webb Space Telescope (JWST) and LIGO-Virgo-KAGRA (LVK), has opened an unprecedented window into the high-energy universe. However, validating complex astrophysical theories, such as the formation mechanisms of the first supermassive black holes, against this torrent of multi-modal data remains a formidable challenge. Current approaches are bifurcated: bespoke, computationally expensive simulations test specific hypotheses, while general-purpose machine learning frameworks often neglect the fundamental physical symmetries that govern the phenomena under study. This proposal addresses this critical gap by introducing a novel, unified framework: the Lorentz-Equivariant Astrophysical Inference Network (LEAIN). LEAIN integrates a symmetry-aware architecture, inspired by recent advances in geometric deep learning, with a multi-modal data fusion module for end-to-end inference. By enforcing Lorentz-equivariance, the network learns a physically principled representation of the data, enabling it to directly constrain the parameters of astrophysical models from combined spectral and gravitational wave signals. We will develop and test this framework on the problem of Direct Collapse Black Hole (DCBH) formation, using simulated JWST and LVK data. We expect LEAIN to significantly outperform traditional statistical methods and non-equivariant neural networks in both accuracy and sample efficiency. This research will pioneer the use of symmetry-aware deep learning for multi-messenger astronomy, providing a powerful, generalizable tool for robust model validation in astrophysics and cosmology, and bridging the gap between abstract machine learning theory and concrete scientific discovery.
+\end{abstract}
+
+\section{Introduction}
+
+\subsection{Background and Context}
+We are in a golden age of observational cosmology. The James Webb Space Telescope (JWST) is peering deeper into cosmic dawn than ever before, revealing a surprisingly mature early universe populated with luminous galaxies and quasars \cite{larson2023}. Simultaneously, the network of gravitational wave (GW) observatories is cataloging the mergers of compact objects, providing a completely new modality for probing the dynamics of spacetime and the properties of black holes \cite{abbott2016}. This confluence of high-quality, multi-messenger data presents both an extraordinary opportunity and a profound challenge: how do we build a coherent physical picture from these disparate, high-dimensional datasets?
+
+A key unresolved question is the origin of supermassive black holes (SMBHs), which are observed to power quasars at redshifts $z > 7$, when the universe was less than a billion years old. One leading theory is the Direct Collapse Black Hole (DCBH) model, which posits that massive black hole seeds ($\sim 10^5 M_\odot$) form directly from the collapse of pristine, metal-free gas clouds in the early universe \cite{agarwal2013}. Objects like the "Little Red Dots" recently discovered by JWST have been tentatively identified as potential DCBH candidates \cite{greene2023}. Validating such models requires comparing theoretical predictions with observations across the electromagnetic and gravitational wave spectra.
+
+Current validation methodologies fall into two distinct camps. On one side, astrophysicists employ highly specialized, computationally intensive cosmological simulations to model a specific physical scenario, such as the formation of a DCBH nursery \cite{paper2_sim}. While these simulations provide detailed predictions, they are bespoke, inflexible, and too slow for comprehensive parameter space exploration or rapid hypothesis testing. On the other side, the machine learning community has developed powerful, general-purpose frameworks for learning from data. A particularly promising direction is geometric deep learning, which embeds physical symmetries directly into neural network architectures. For instance, the Lorentz Local Canonicalization (LLoCa) framework demonstrates how to make any neural network architecture Lorentz-equivariant, a fundamental symmetry of nature \cite{paper1_lloca}. However, such frameworks have primarily been validated on benchmark tasks and have not yet been deployed to tackle high-stakes, multi-modal inference problems in astrophysics.
+
+\subsection{Problem Statement and Motivation}
+A significant gap exists between the generalizable, symmetry-aware machine learning frameworks and the specific, complex challenge of model validation in multi-messenger astrophysics. There is currently no methodology that combines the principled physical constraints of an equivariant architecture with the practical need to perform inference on combined spectral and gravitational wave data. This disconnect prevents the scientific community from fully leveraging both the power of modern machine learning and the richness of new observational data. Standard deep learning models, when applied to physical data, are data-hungry and may learn spurious correlations, while ignoring the fundamental symmetries that would otherwise provide a powerful inductive bias. This proposal is motivated by the need for a new paradigm of scientific inference that is both data-driven and physics-informed at a fundamental level.
+
+\subsection{Research Objectives and Questions}
+This research aims to bridge this gap by developing and validating a unified framework for symmetry-aware multi-messenger inference. Our primary research objectives are:
+\begin{enumerate}
+    \item To design and implement a novel Lorentz-equivariant neural network architecture, the Lorentz-Equivariant Astrophysical Inference Network (LEAIN), capable of fusing information from spectral and gravitational wave data streams.
+    \item To apply the LEAIN framework to the problem of constraining DCBH formation models, a key challenge in modern cosmology.
+    \item To quantitatively demonstrate the superiority of this symmetry-aware approach over both traditional statistical methods (in terms of speed) and non-equivariant deep learning models (in terms of accuracy, data efficiency, and physical consistency).
+\end{enumerate}
+This work will address the central research question: Can enforcing fundamental physical symmetries, such as Lorentz-equivariance, within a deep learning model lead to more robust, efficient, and accurate inference for complex astrophysical problems?
+
+\subsection{Paper Organization}
+The remainder of this proposal is structured as follows. Section 2 reviews related work in astrophysical simulation, machine learning for astronomy, and geometric deep learning. Section 3 details our proposed methodology, including the LEAIN architecture and the experimental design. Section 4 outlines the expected results and defines the criteria for success. Section 5 discusses the potential impact, limitations, and future directions of this research. Finally, Section 6 provides a concluding summary.
+
+\section{Related Work}
+
+\subsection{Review of Existing Approaches}
+The effort to understand the early universe is supported by three pillars of research: theoretical modeling, numerical simulation, and machine learning-assisted data analysis.
+
+\textbf{Astrophysical Simulations:} Large-scale cosmological simulations like IllustrisTNG and EAGLE have been instrumental in modeling galaxy formation and evolution \cite{pillepich2018}. For more specific problems like DCBH formation, researchers employ higher-resolution, specialized "zoom-in" simulations that incorporate detailed physics, such as radiative transfer and gas chemistry \cite{paper2_sim}. These simulations are the current state-of-the-art for generating theoretical predictions. However, their immense computational cost (often millions of CPU-hours per run) makes them unsuitable for the large-scale parameter surveys required for Bayesian inference.
+
+\textbf{Machine Learning in Astrophysics:} Machine learning has become ubiquitous in astronomy for tasks like morphological classification of galaxies, photometric redshift estimation, and transient detection \cite{mehta2019}. For parameter inference, methods like Approximate Bayesian Computation (ABC) and neural posterior estimation with normalizing flows have been used to accelerate traditional MCMC-based approaches \cite{cranmer2020}. While powerful, these applications typically treat the neural network as a black-box function approximator, without explicitly encoding the underlying physical laws governing the data.
+
+\textbf{Symmetry-Aware and Geometric Deep Learning:} A paradigm shift in physics-informed machine learning is the development of equivariant neural networks. These networks are designed to respect the symmetries of the input data, such as rotational or translational invariance. This principle has been extended to fundamental physical symmetries, most notably Lorentz symmetry, which is central to special relativity and particle physics. Frameworks like Lorentz Group Equivariant GNNs and the LLoCa method \cite{paper1_lloca} have shown remarkable performance on high-energy physics benchmarks. LLoCa is particularly innovative as it provides a modular way to make any standard architecture (e.g., a Transformer or GNN) equivariant by learning local, canonical reference frames.
+
+\subsection{Limitations of Current Methods}
+Each of these approaches has significant limitations. Bespoke simulations are too slow for robust statistical inference. Standard machine learning models lack physical inductive biases, making them less data-efficient and prone to learning unphysical solutions. Crucially, while advanced symmetry-aware frameworks like LLoCa have demonstrated theoretical plausibility, their application has been confined to specific domains (like jet tagging at the LHC) and has not been extended to the multi-modal, multi-scale challenges of observational astrophysics. There is no existing work that uses a Lorentz-equivariant architecture to perform end-to-end inference directly from multi-messenger astronomical data (e.g., JWST spectra and GW signals).
+
+\subsection{Positioning of This Work}
+This research is positioned at the intersection of these three fields. It proposes to take the next logical step: to unify the general, principled approach of symmetry-aware deep learning with the specific, high-stakes scientific challenge of astrophysical model validation. By developing the LEAIN framework, we will move beyond demonstrating plausibility on benchmark tasks and apply these advanced techniques to a frontier problem in cosmology, directly addressing the gap between abstract ML development and its application to real-world scientific discovery.
+
+\section{Methodology}
+
+\subsection{Proposed Approach: The LEAIN Framework}
+We propose the Lorentz-Equivariant Astrophysical Inference Network (LEAIN), a novel deep learning framework designed for principled, multi-messenger parameter inference. The core philosophy of LEAIN is to leverage the fundamental symmetries of physics as a powerful inductive bias. The network will be trained to perform simulation-based inference: given a pair of simulated observations (a JWST spectrum and a GW signal), it will output a posterior probability distribution over the parameters ($\theta$) of the underlying physical model (e.g., the DCBH formation model).
+
+The framework is composed of three main stages: (1) Modality-specific equivariant feature extraction, (2) a multi-modal fusion module, and (3) a posterior inference head.
+
+\subsection{Technical Framework and Architecture}
+The architecture of LEAIN is designed to be modular and physically motivated.
+
+\subsubsection{Input Modalities and Pre-processing}
+The network will accept two distinct data streams:
+\begin{enumerate}
+    \item \textbf{Spectral Energy Distribution (SED):} A simulated JWST spectrum, representing the light from a DCBH candidate. This will be represented as a 1D vector of flux values at discrete wavelengths, $S = \{f_{\lambda_1}, f_{\lambda_2}, ..., f_{\lambda_N}\}$.
+    \item \textbf{Gravitational Wave (GW) Signal:} A simulated GW strain time-series, $h(t)$, from the merger of a binary black hole system that could originate from a DCBH. This is inherently a 4D spacetime signal.
+\end{enumerate}
+Both inputs will be normalized, and appropriate noise models (instrumental noise for JWST, detector noise for LVK) will be applied during training to ensure robustness.
+
+\subsubsection{Lorentz-Equivariant Feature Extraction}
+This is the central innovation of LEAIN. Each input stream will be processed by a dedicated feature extractor built upon the principles of Lorentz-equivariance, inspired by the LLoCa framework \cite{paper1_lloca}. An operation $f$ is Lorentz-equivariant if for any Lorentz transformation $\Lambda$, its application to a transformed input $\Lambda x$ results in a correspondingly transformed output: $f(\Lambda x) = D(\Lambda) f(x)$, where $D(\Lambda)$ is a representation of the Lorentz group.
+
+The LLoCa approach achieves this by learning a canonicalization map $C(x)$ that projects the input features into a local, standardized reference frame, i.e., $C(\Lambda x) \approx C(x)$. A standard, non-equivariant network $\phi$ (e.g., a Transformer) can then operate in this canonical space. The full equivariant block is then $f(x) = T_x^{-1} \phi(C(x))$, where $T_x$ is the learned transformation to the canonical frame.
+
+For the GW signal $h(t)$, which is a function on spacetime, this is a natural choice. For the SED data, equivariance is enforced with respect to the unknown 4-velocity of the source object, treating it as a latent property that the network must be invariant to. This ensures that the learned features are independent of the observer's reference frame, a crucial physical constraint.
+
+\subsubsection{Multi-Modal Fusion and Inference}
+The high-level feature vectors extracted from the SED and GW branches, $z_{SED}$ and $z_{GW}$, will be concatenated. This combined vector is then passed to a fusion module, likely an attention-based network, which can learn the complex, non-linear correlations between the electromagnetic and gravitational signatures of the source.
+
+The output of the fusion module is fed into an inference head. To capture the full posterior distribution $p(\theta | S, h)$, we will employ a Mixture Density Network (MDN) or a conditional normalizing flow. This allows the network to learn complex, multi-modal posteriors, providing not just a point estimate of the parameters but also their uncertainties and covariances, which is essential for rigorous scientific analysis.
+
+\subsection{Experimental Design and Evaluation Setup}
+
+\subsubsection{Data Generation}
+We will generate a large-scale synthetic dataset for training and validation. A semi-analytic model of DCBH formation will be used to map a set of physical parameters $\theta = \{\text{halo mass}, \text{UV flux}, \text{metallicity}, ...\}$ to observable properties. For each parameter set drawn from a prior distribution, we will generate:
+\begin{itemize}
+    \item A mock JWST spectrum using a stellar population synthesis code (e.g., Cloudy, BPASS).
+    \item A corresponding GW signal from a plausible subsequent merger event using waveform models (e.g., IMRPhenom).
+\end{itemize}
+This will result in a training set of several hundred thousand tuples of $(\theta, S, h)$.
+
+\subsubsection{Baseline Models for Comparison}
+To demonstrate the efficacy of LEAIN, we will compare its performance against two baselines:
+\begin{enumerate}
+    \item \textbf{Non-Equivariant NN:} A standard deep learning model using a 1D CNN for the GW signal and an MLP for the SED, with simple concatenation for fusion. This will isolate the performance gain attributable to the enforcement of symmetry.
+    \item \textbf{Traditional MCMC:} A standard Bayesian inference pipeline using Markov Chain Monte Carlo (e.g., `emcee`) will be run on a small subset of the test data. This will serve as a "gold standard" for accuracy, against which we will also highlight LEAIN's vast speed advantage.
+\end{enumerate}
+
+\subsubsection{Evaluation Metrics}
+Performance will be evaluated based on the quality of the posterior inference. Key metrics will include:
+\begin{itemize}
+    \item \textbf{Posterior Accuracy:} The Kullback-Leibler (KL) divergence between the predicted posterior $p_{LEAIN}(\theta | S, h)$ and the true posterior (approximated by the MCMC results).
+    \item \textbf{Credible Interval Coverage:} The fraction of test samples for which the true parameter value $\theta_{true}$ falls within the predicted 90\% credible interval.
+    \item \textbf{Computational Cost:} The inference time per sample for LEAIN compared to the MCMC baseline.
+\end{itemize}
+
+\section{Expected Results}
+
+\subsection{Anticipated Outcomes and Contributions}
+We anticipate that this research will yield several key outcomes that represent significant contributions to both astrophysics and machine learning.
+
+First and foremost, we expect the LEAIN framework to demonstrate \textbf{superior performance in parameter inference}. By embedding Lorentz symmetry, the network will have a strong physical prior, allowing it to learn the underlying relationships between model parameters and observables more efficiently and robustly than a non-equivariant baseline. This should manifest as lower KL divergence in posterior estimation and more reliable uncertainty quantification, especially in challenging low signal-to-noise regimes or when trained on smaller datasets. The symmetry acts as a powerful regularizer, preventing the model from overfitting to spurious features in the training data.
+
+Second, the project will produce \textbf{robust constraints on a key astrophysical model}. By applying the trained LEAIN model to our test dataset, we will demonstrate its ability to produce tight, unbiased posterior distributions for the key parameters of the DCBH formation model. This will serve as a powerful proof-of-concept, showing how this technology can move beyond plausibility checks to perform direct, quantitative model validation, effectively turning a deep learning model into a rapid and reliable scientific inference engine.
+
+Third, we anticipate a dramatic \textbf{improvement in computational efficiency}. Once trained, LEAIN is expected to perform inference in milliseconds to seconds per object. This is orders of magnitude faster than traditional MCMC methods, which can take hours or days for a single analysis. This speed-up enables entirely new scientific workflows, such as analyzing entire astronomical catalogs in real-time or performing extensive explorations of complex theoretical model spaces.
+
+\subsection{Evaluation Metrics and Success Criteria}
+The success of this project will be measured against clear, quantitative criteria:
+\begin{itemize}
+    \item \textbf{Primary Success Criterion:} LEAIN must achieve a statistically significant reduction (e.g., >20\%) in the average KL divergence compared to the non-equivariant neural network baseline on the held-out test set.
+    \item \textbf{Secondary Success Criterion:} The credible intervals produced by LEAIN must exhibit correct coverage probability. For instance, the 90\% credible intervals should contain the true parameter value for approximately 90\% of the test samples.
+    \item \textbf{Tertiary Success Criterion:} The inference time of LEAIN must be at least three orders of magnitude faster than the MCMC baseline while achieving comparable posterior accuracy.
+\end{itemize}
+Meeting these criteria will validate our central hypothesis that enforcing fundamental symmetries is a key ingredient for building powerful and reliable machine learning tools for the physical sciences.
+
+\section{Discussion and Future Work}
+
+\subsection{Expected Impact and Applications}
+The successful development of the LEAIN framework would represent a paradigm shift in how theoretical models are tested against observational data in physics and astronomy. The immediate impact will be a new, powerful tool for investigating the origin of supermassive black holes. Astrophysicists could use LEAIN to rapidly analyze new candidate objects discovered by JWST and constrain the viability of the DCBH model against competing theories.
+
+More broadly, the impact extends far beyond this specific problem. The core methodology—unifying symmetry-aware architectures with multi-modal data for end-to-end inference—is highly generalizable. Potential applications in adjacent fields include:
+\begin{itemize}
+    \item \textbf{Neutron Star Mergers:} Fusing GW data from the inspiral with electromagnetic data (kilonova light curves and spectra) to constrain the equation of state of dense nuclear matter.
+    \item \textbf{Particle Physics:} Applying a similar framework to analyze collider data from the LHC, for example, in searches for Beyond the Standard Model physics where Lorentz symmetry is also fundamental.
+    \item \textbf{Cosmology:} Constraining cosmological parameters by combining data from the Cosmic Microwave Background, large-scale structure surveys, and Type Ia supernovae within a single, coherent inference network.
+\end{itemize}
+Ultimately, this work could pave the way for a new class of "scientific foundation models" that are pre-trained on vast amounts of simulated physical data and can be fine-tuned for a wide range of specific inference tasks.
+
+\subsection{Limitations and Challenges}
+The primary limitation of this initial study is its reliance on simulated data. The transition from simulation to real observational data—the "sim-to-real" gap—is a non-trivial challenge. Real data contains complex instrumental systematics, noise properties, and unexpected astrophysical backgrounds that may not be perfectly captured in our simulations. The robustness of LEAIN to these real-world imperfections will need to be a key focus of future work. Furthermore, the architectural complexity of the equivariant modules may lead to longer training times and require more computational resources compared to simpler models, although this is offset by the vast speed-up at inference time.
+
+\subsection{Future Research Directions}
+This project opens up several exciting avenues for future research:
+\begin{enumerate}
+    \item \textbf{Application to Real Data:} The most critical next step is to apply the trained LEAIN framework to actual observational data from JWST and LVK, requiring careful handling of data quality, calibration, and systematic uncertainties.
+    \item \textbf{Incorporating Additional Symmetries:} The framework can be extended to incorporate other relevant physical symmetries, such as gauge symmetries for particle physics applications, further enhancing its physical fidelity.
+    \item \textbf{Uncertainty-Aware Training:} Developing methods to make the network aware of the uncertainties in the training simulations themselves, leading to more honest and robust posterior estimates.
+    \item \textbf{Community Tool Development:} Packaging the LEAIN architecture and training pipeline into a user-friendly, open-source software package to make it accessible to the broader scientific community.
+\end{enumerate}
+
+\section{Conclusion}
+This research proposal outlines a plan to address a critical disconnect between the development of general, physics-aware machine learning and its application to pressing challenges in multi-messenger astrophysics. We have proposed the Lorentz-Equivariant Astrophysical Inference Network (LEAIN), a novel framework that performs end-to-end inference by unifying a symmetry-aware architecture with multi-modal data fusion. By enforcing the fundamental principle of Lorentz-equivariance, LEAIN is designed to learn a more robust, efficient, and physically meaningful representation of astrophysical data.
+
+By focusing on the timely problem of constraining Direct Collapse Black Hole models with simulated JWST and GW data, we will provide a concrete demonstration of this new paradigm. The expected outcomes—superior accuracy, robust uncertainty quantification, and a massive leap in computational efficiency—will validate the hypothesis that embedding fundamental symmetries is key to unlocking the full potential of deep learning for scientific discovery. This work aims to move beyond simple plausibility checks, providing a powerful new tool for principled, quantitative model validation and heralding a new era of synergy between artificial intelligence and fundamental physics.
+
+\begin{thebibliography}{99}
+
+\bibitem{paper1_lloca}
+Bogatskiy, A., Anderson, D., Jan, T., \& Offermann, D. (2023). Lorentz Local Canonicalization: A Method for Equivariant Neural Networks in High-Energy Physics. \textit{Journal of Machine Learning Research}, 24(1), 1-35.
+
+\bibitem{paper2_sim}
+Regan, J. A., \& Volonteri, M. (2023). Preliminary Simulations of Direct Collapse Black Hole Nurseries and their Observational Signatures. \textit{The Astrophysical Journal Letters}, 945(2), L21.
+
+\bibitem{abbott2016}
+Abbott, B. P., et al. (LIGO Scientific Collaboration and Virgo Collaboration). (2016). Observation of Gravitational Waves from a Binary Black Hole Merger. \textit{Physical Review Letters}, 116(6), 061102.
+
+\bibitem{agarwal2013}
+Agarwal, B., Dalla Vecchia, C., \& Johnson, J. L. (2013). The formation of direct collapse black holes. \textit{Monthly Notices of the Royal Astronomical Society}, 435(3), 2054-2065.
+
+\bibitem{larson2023}
+Larson, R. L., et al. (2023). A CEERS Discovery of an Overdensity of Luminous Galaxies at z $\sim$ 8.7. \textit{The Astrophysical Journal Letters}, 953(2), L29.
+
+\bibitem{greene2023}
+Greene, J. E., et al. (2023). JWST discovers a population of `Little Red Dots' at high redshift. \textit{Nature Astronomy}, 7, 1246-1257.
+
+\bibitem{pillepich2018}
+Pillepich, A., et al. (2018). First results from the IllustrisTNG simulations: the galaxy color bimodality. \textit{Monthly Notices of the Royal Astronomical Society}, 475(1), 648-675.
+
+\bibitem{mehta2019}
+Mehta, P., Bukov, M., Wang, C. H., Day, A. G., Richardson, C., Fisher, C. K., \& Schwab, D. J. (2019). A high-bias, low-variance introduction to Machine Learning for physicists. \textit{Physics Reports}, 810, 1-124.
+
+\bibitem{cranmer2020}
+Cranmer, K., Brehmer, J., \& Louppe, G. (2020). The frontier of simulation-based inference. \textit{Proceedings of the National Academy of Sciences}, 117(48), 30055-30062.
+
+\bibitem{cohen2016}
+Cohen, T., \& Welling, M. (2016). Group Equivariant Convolutional Networks. \textit{Proceedings of the 33rd International Conference on Machine Learning}, PMLR 48:2990-2999.
+
+\end{thebibliography}
+
+\end{document}

@@ -1,25 +1,33 @@
+
 """
-AI Researcher Agent - QUOTA SAFE VERSION
+AI Researcher Agent using LangGraph
 
-This version is designed to work within strict API quotas:
-- Minimal API calls with maximum delays
-- Fallback to template-based generation when quota exceeded
-- Local LaTeX template generation without API calls
-- Smart caching and content reuse
+This agent orchestrates a complete research workflow:
+1. Search arXiv for related papers
+2. Read and analyze each paper
+3. Identify gaps and improvements
+4. Generate a new research paper
+5. Output the final PDF
 
-Key Features:
-- Only makes essential API calls
-- 10+ second delays between calls
-- Template-based fallback system
-- Local content generation for sections
+Dependencies:
+- langgraph
+- langchain-core
+- langchain-google-genai
+- PyPDF2
+- requests
+- python-dotenv
 """
 
 import json
 import os
 import time
+import random
+from datetime import datetime
 from typing import TypedDict, List, Dict, Any
 from pathlib import Path
+from xml.dom.minidom import Document
 from dotenv import load_dotenv
+from google.api_core.exceptions import ResourceExhausted
 
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import HumanMessage, AIMessage
@@ -49,6 +57,187 @@ write_pdf = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(write_pdf)
 render_latex_pdf = write_pdf.render_latex_pdf
 
+class ResearchState(TypedDict):
+    """State for the AI Researcher workflow"""
+    topic: str
+    papers: List[Dict[str, Any]]
+    paper_analyses: List[Dict[str, str]]
+    identified_gaps: str
+    research_proposal: str
+    final_pdf_path: str
+    messages: List[Any]
+    step_count: int
+    current_step: str
+
+class AIResearcherAgent:
+    """
+    AI Researcher Agent that follows a structured workflow to:
+    1. Search for research papers
+    2. Analyze them
+    3. Identify improvements
+    4. Generate new research paper
+    """
+    
+    def __init__(self, model_name: str = None, api_key: str = None, max_papers: int = 3):
+        """Initialize the AI Researcher Agent
+        
+        Args:
+            model_name: The Gemini model to use (default: gemini-2.5-pro)
+            api_key: Google API key (if None, will use environment variable)
+            max_papers: Maximum number of papers to analyze (default: 3)
+        """
+        self.max_papers = max_papers
+        self.llm = ChatGoogleGenerativeAI(
+            model=model_name or os.getenv("MODEL_NAME", "gemini-2.5-pro"),
+            google_api_key=api_key or os.getenv("GOOGLE_API_KEY"),
+            temperature=float(os.getenv("TEMPERATURE", "0.1")),
+            max_output_tokens=65536
+        )
+        self.workflow = self._create_workflow()
+        
+    def _create_workflow(self) -> StateGraph:
+        """Create the LangGraph workflow"""
+        workflow = StateGraph(ResearchState)
+        workflow.add_node("search_papers", self._search_papers_node)
+        workflow.add_node("analyze_papers", self._analyze_papers_node)
+        workflow.add_node("identify_gaps", self._identify_gaps_node)
+        workflow.add_node("generate_paper", self._generate_paper_node)
+        workflow.add_node("create_pdf", self._create_pdf_node)
+        workflow.set_entry_point("search_papers")
+        workflow.add_edge("search_papers", "analyze_papers")
+        workflow.add_edge("analyze_papers", "identify_gaps")
+        workflow.add_edge("identify_gaps", "generate_paper")
+        workflow.add_edge("generate_paper", "create_pdf")
+        workflow.add_edge("create_pdf", END)
+        return workflow.compile()
+    
+    def _retry_with_backoff(self, func, *args, max_retries=5, initial_delay=2, max_delay=60):
+        """Retry a function with exponential backoff on ResourceExhausted errors"""
+        delay = initial_delay
+        for attempt in range(max_retries):
+            try:
+                return func(*args)
+            except ResourceExhausted as e:
+                if attempt == max_retries - 1:
+                    raise e
+                wait_time = min(delay * (2 ** attempt) + random.uniform(0, 1), max_delay)
+                print(f"Retrying in {wait_time:.1f} seconds due to ResourceExhausted: {e}")
+                time.sleep(wait_time)
+        raise Exception("Max retries reached")
+
+    def _search_papers_node(self, state: ResearchState) -> ResearchState:
+        """Node 1: Search for research papers using arXiv"""
+        print(f"\n[DEBUG] Step 1: Searching for papers on '{state['topic']}'")
+        try:
+            result = self._retry_with_backoff(arxiv_search.invoke, {"topic": state["topic"]})
+            papers = result.get("entries", [])[:self.max_papers]  # Limit number of papers
+            print(f"Found {len(papers)} papers")
+            state["papers"] = papers
+            state["current_step"] = "search_completed"
+            state["step_count"] = 1
+            state["messages"].append(
+                AIMessage(content=f"Successfully found {len(papers)} research papers on {state['topic']}")
+            )
+        except Exception as e:
+            print(f"Error searching papers: {e}")
+            state["messages"].append(AIMessage(content=f"Error searching papers: {str(e)}"))
+            state["papers"] = []
+        return state
+    
+    def _analyze_papers_node(self, state: ResearchState) -> ResearchState:
+        """Node 2: Analyze each paper using PDF reading"""
+        print(f"\nStep 2: Analyzing {len(state['papers'])} papers")
+        analyses = []
+        for i, paper in enumerate(state["papers"], 1):
+            print(f"Analyzing paper {i}/{len(state['papers'])}: {paper.get('title', 'Unknown')}")
+            try:
+                pdf_url = paper.get("pdf")
+                if not pdf_url:
+                    print(f"No PDF URL for paper {i}")
+                    continue
+                pdf_content = self._retry_with_backoff(read_pdf.invoke, {"url": pdf_url})
+                analysis_prompt = f"""
+                Analyze this research paper and provide a structured summary:
+                Paper Title: {paper.get('title', 'Unknown')}
+                Authors: {', '.join(paper.get('authors', []))}
+                Paper Content: {pdf_content[:8000]}
+                Please provide:
+                1. **Abstract Summary**: Key points from the abstract
+                2. **Methodology**: Main approaches and techniques used
+                3. **Key Results**: Primary findings and contributions
+                4. **Limitations**: What the authors acknowledge as limitations
+                5. **Future Work**: Areas the authors suggest for improvement
+                Format your response as structured text with clear sections.
+                """
+                response = self._retry_with_backoff(self.llm.invoke, [HumanMessage(content=analysis_prompt)])
+                analysis = {
+                    "paper_title": paper.get("title", "Unknown"),
+                    "authors": paper.get("authors", []),
+                    "summary": paper.get("summary", ""),
+                    "analysis": response.content,
+                    "pdf_url": pdf_url
+                }
+                analyses.append(analysis)
+                print(f"Completed analysis for paper {i}")
+            except Exception as e:
+                print(f"Error analyzing paper {i}: {e}")
+                continue
+
+"""
+AI Researcher Agent using LangGraph
+
+This agent orchestrates a complete research workflow:
+1. Search arXiv for related papers
+2. Read and analyze each paper
+3. Identify gaps and improvements
+4. Generate a new research paper
+5. Output the final PDF
+
+Dependencies:
+- langgraph
+- langchain-core
+- langchain-google-genai
+- PyPDF2
+- requests
+- python-dotenv
+"""
+
+import json
+import os
+import time
+import random
+from typing import TypedDict, List, Dict, Any
+from pathlib import Path
+from dotenv import load_dotenv
+from google.api_core.exceptions import ResourceExhausted
+
+from langgraph.graph import StateGraph, END
+from langchain_core.messages import HumanMessage, AIMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
+
+# Load environment variables
+load_dotenv()
+
+# Import your custom tools
+import importlib.util
+import sys
+
+# Import arxiv_tool
+tool_path = r"C:\Users\User\Ai_agents\backend\agents\fourthagent\arxiv-tool.py"
+spec = importlib.util.spec_from_file_location("arxiv_tool", tool_path)
+arxiv_tool = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(arxiv_tool)
+arxiv_search = arxiv_tool.arxiv_search  
+
+# Import read_pdf
+from read_pdf import read_pdf
+
+# Import write_pdf
+tool_path = r"C:\Users\User\Ai_agents\backend\agents\fourthagent\write-pdf.py"
+spec = importlib.util.spec_from_file_location("write_pdf", tool_path)
+write_pdf = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(write_pdf)
+render_latex_pdf = write_pdf.render_latex_pdf
 
 class ResearchState(TypedDict):
     """State for the AI Researcher workflow"""
@@ -62,415 +251,444 @@ class ResearchState(TypedDict):
     step_count: int
     current_step: str
     api_call_count: int
-    last_api_call_time: float
-    use_fallback: bool
-
 
 class AIResearcherAgent:
     """
-    AI Researcher Agent with strict quota management and fallback systems
+    AI Researcher Agent that follows a structured workflow to:
+    1. Search for research papers
+    2. Analyze them
+    3. Identify improvements
+    4. Generate new research paper
     """
     
-    def __init__(self, model_name: str = None, api_key: str = None):
-        """Initialize the AI Researcher Agent with conservative settings"""
+    def __init__(self, model_name: str = None, api_key: str = None, max_papers: int = 2, max_api_calls: int = 10):
+        """Initialize the AI Researcher Agent
         
-        # Verify API key is loaded
-        api_key = api_key or os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise ValueError("GOOGLE_API_KEY not found in environment variables")
-        
-        print(f"🔑 Using API key ending in: ...{api_key[-8:]}")
-        
+        Args:
+            model_name: The Gemini model to use (default: gemini-2.5-pro)
+            api_key: Google API key (if None, will use environment variable)
+            max_papers: Maximum number of papers to analyze (default: 2)
+            max_api_calls: Maximum number of API calls before skipping steps (default: 10)
+        """
+        self.max_papers = max_papers
+        self.max_api_calls = max_api_calls
+        self.api_call_count = 0
         self.llm = ChatGoogleGenerativeAI(
-            model=model_name or os.getenv("MODEL_NAME", "gemini-1.5-flash"),
-            google_api_key=api_key,
-            temperature=0.0  # Use 0 for most deterministic results
+            model=model_name or os.getenv("MODEL_NAME", "gemini-2.5-pro"),
+            google_api_key=api_key or os.getenv("GOOGLE_API_KEY"),
+            temperature=float(os.getenv("TEMPERATURE", "0.1")),
+            max_output_tokens=65536
         )
-        
-        # Very conservative rate limiting
-        self.min_api_delay = 15.0  # 15 seconds between API calls
-        self.max_retries = 2  # Only 2 retries to avoid quota exhaustion
-        self.max_api_calls = 5  # Maximum total API calls allowed
-        
-        # Create the workflow graph
         self.workflow = self._create_workflow()
-    
-    def _can_make_api_call(self, state: ResearchState) -> bool:
-        """Check if we can make another API call within quota limits"""
-        current_calls = state.get("api_call_count", 0)
-        if current_calls >= self.max_api_calls:
-            print(f"🚫 API call limit reached ({current_calls}/{self.max_api_calls})")
-            return False
-        return True
-    
-    def _safe_api_call(self, messages, state: ResearchState, operation_name: str = "") -> str:
-        """Make a single API call with maximum safety measures"""
         
-        if not self._can_make_api_call(state):
-            state["use_fallback"] = True
-            raise Exception(f"API quota limit reached, switching to fallback mode")
-        
-        current_time = time.time()
-        time_since_last_call = current_time - state.get("last_api_call_time", 0)
-        
-        # Ensure minimum delay
-        if time_since_last_call < self.min_api_delay:
-            sleep_time = self.min_api_delay - time_since_last_call
-            print(f"  ⏳ Safety delay for {operation_name}: waiting {sleep_time:.1f}s...")
-            time.sleep(sleep_time)
-        
-        try:
-            print(f"🔄 Making API call {state.get('api_call_count', 0) + 1}/{self.max_api_calls} for {operation_name}")
-            state["last_api_call_time"] = time.time()
-            state["api_call_count"] = state.get("api_call_count", 0) + 1
-            
-            response = self.llm.invoke(messages)
-            print(f"✅ API call successful for {operation_name}")
-            return response.content
-            
-        except Exception as e:
-            print(f"❌ API call failed for {operation_name}: {str(e)[:100]}...")
-            state["use_fallback"] = True
-            raise e
-    
     def _create_workflow(self) -> StateGraph:
         """Create the LangGraph workflow"""
         workflow = StateGraph(ResearchState)
-        
-        # Add nodes
         workflow.add_node("search_papers", self._search_papers_node)
         workflow.add_node("analyze_papers", self._analyze_papers_node)
         workflow.add_node("identify_gaps", self._identify_gaps_node)
         workflow.add_node("generate_paper", self._generate_paper_node)
         workflow.add_node("create_pdf", self._create_pdf_node)
-        
-        # Define the flow
         workflow.set_entry_point("search_papers")
         workflow.add_edge("search_papers", "analyze_papers")
         workflow.add_edge("analyze_papers", "identify_gaps")
         workflow.add_edge("identify_gaps", "generate_paper")
         workflow.add_edge("generate_paper", "create_pdf")
         workflow.add_edge("create_pdf", END)
-        
         return workflow.compile()
     
+    def _retry_with_backoff(self, func, *args, max_retries=5, initial_delay=2, max_delay=60):
+        """Retry a function with exponential backoff on ResourceExhausted errors"""
+        delay = initial_delay
+        for attempt in range(max_retries):
+            if self.api_call_count >= self.max_api_calls:
+                raise ResourceExhausted("API call limit reached")
+            self.api_call_count += 1
+            try:
+                return func(*args)
+            except ResourceExhausted as e:
+                if attempt == max_retries - 1:
+                    raise e
+                wait_time = min(delay * (2 ** attempt) + random.uniform(0, 1), max_delay)
+                print(f"Retrying in {wait_time:.1f} seconds due to ResourceExhausted: {e}")
+                time.sleep(wait_time)
+        raise Exception("Max retries reached")
+
     def _search_papers_node(self, state: ResearchState) -> ResearchState:
-        """Node 1: Search for research papers (no API calls needed)"""
+        """Node 1: Search for research papers using arXiv"""
         print(f"\n[DEBUG] Step 1: Searching for papers on '{state['topic']}'")
-        
         try:
-            # Use the arxiv_search tool (this doesn't use Gemini API)
-            result = arxiv_search.invoke({"topic": state["topic"]})
-            all_papers = result.get("entries", [])
-            
-            print(f"Found {len(all_papers)} total papers")
-            
-            # Simple keyword filtering without API calls
-            topic_keywords = state["topic"].lower().split()
-            relevant_papers = []
-            
-            for paper in all_papers:
-                title = paper.get("title", "").lower()
-                summary = paper.get("summary", "").lower()
-                
-                relevance_score = 0
-                for keyword in topic_keywords:
-                    if keyword in title:
-                        relevance_score += 2
-                    if keyword in summary:
-                        relevance_score += 1
-                
-                if relevance_score > 0:
-                    paper["relevance_score"] = relevance_score
-                    relevant_papers.append(paper)
-            
-            # Sort by relevance and take top 2 papers (reduce processing)
-            relevant_papers.sort(key=lambda x: x["relevance_score"], reverse=True)
-            selected_papers = relevant_papers[:2]
-            
-            print(f"✅ Found {len(selected_papers)} relevant papers after filtering")
-            for i, paper in enumerate(selected_papers, 1):
-                print(f"  {i}. {paper.get('title', 'Unknown')} (relevance: {paper['relevance_score']})")
-            
-            # Update state
-            state["papers"] = selected_papers
+            result = self._retry_with_backoff(arxiv_search.invoke, {"topic": state["topic"]})
+            papers = result.get("entries", [])[:self.max_papers]
+            print(f"Found {len(papers)} papers")
+            state["papers"] = papers
             state["current_step"] = "search_completed"
             state["step_count"] = 1
-            state["api_call_count"] = 0
-            state["last_api_call_time"] = 0
-            state["use_fallback"] = False
+            state["api_call_count"] = self.api_call_count
             state["messages"].append(
-                AIMessage(content=f"Successfully found {len(selected_papers)} relevant research papers")
+                AIMessage(content=f"Successfully found {len(papers)} research papers on {state['topic']}")
             )
-            
         except Exception as e:
-            print(f"❌ Error searching papers: {e}")
+            print(f"Error searching papers: {e}")
+            state["messages"].append(AIMessage(content=f"Error searching papers: {str(e)}"))
             state["papers"] = []
-            
+            state["api_call_count"] = self.api_call_count
         return state
     
     def _analyze_papers_node(self, state: ResearchState) -> ResearchState:
-        """Node 2: Analyze papers with minimal API usage"""
-        print(f"\n🔍 Step 2: Analyzing {len(state['papers'])} papers")
-        
+        """Node 2: Analyze each paper using PDF reading"""
+        print(f"\nStep 2: Analyzing {len(state['papers'])} papers")
         analyses = []
-        
-        # Only analyze the first paper to conserve API quota
-        for i, paper in enumerate(state["papers"][:1], 1):  # Limit to 1 paper
-            print(f"📄 Analyzing paper {i}: {paper.get('title', 'Unknown')}")
-            
+        for i, paper in enumerate(state["papers"], 1):
+            print(f"Analyzing paper {i}/{len(state['papers'])}: {paper.get('title', 'Unknown')}")
             try:
-                # Get basic info without API call
-                basic_analysis = {
+                pdf_url = paper.get("pdf")
+                if not pdf_url:
+                    print(f"No PDF URL for paper {i}")
+                    continue
+                pdf_content = self._retry_with_backoff(read_pdf.invoke, {"url": pdf_url})
+                analysis_prompt = f"""
+                Analyze this research paper and provide a structured summary:
+                Paper Title: {paper.get('title', 'Unknown')}
+                Authors: {', '.join(paper.get('authors', []))}
+                Paper Content: {pdf_content[:4000]}  # Reduced for quota
+                Please provide:
+                1. **Abstract Summary**: Key points from the abstract (50 words)
+                2. **Methodology**: Main approaches used (50 words)
+                3. **Key Results**: Primary findings (50 words)
+                4. **Limitations**: Acknowledged limitations (50 words)
+                5. **Future Work**: Suggested improvements (50 words)
+                Format as concise structured text.
+                """
+                response = self._retry_with_backoff(self.llm.invoke, [HumanMessage(content=analysis_prompt)])
+                analysis = {
                     "paper_title": paper.get("title", "Unknown"),
                     "authors": paper.get("authors", []),
                     "summary": paper.get("summary", ""),
-                    "analysis": f"This paper focuses on {paper.get('title', 'the research topic')}. The authors explore methodologies related to {state['topic']}. Key contributions include novel approaches and experimental validation.",
-                    "pdf_url": paper.get("pdf", ""),
-                    "relevance_score": paper.get("relevance_score", 0)
+                    "analysis": response.content,
+                    "pdf_url": pdf_url
                 }
-                
-                # Try one API call for detailed analysis if quota allows
-                if not state.get("use_fallback", False) and self._can_make_api_call(state):
-                    try:
-                        # Get minimal PDF content
-                        pdf_url = paper.get("pdf")
-                        if pdf_url:
-                            pdf_content = read_pdf.invoke({"url": pdf_url})
-                            truncated_content = pdf_content[:3000]  # Very small sample
-                            
-                            # Make one focused API call
-                            analysis_prompt = f"""
-                            Analyze this research paper in 200 words:
-                            
-                            Title: {paper.get('title', 'Unknown')}
-                            Content sample: {truncated_content}
-                            
-                            Provide: 1) Main contribution 2) Key methodology 3) One limitation
-                            """
-                            
-                            detailed_analysis = self._safe_api_call(
-                                [HumanMessage(content=analysis_prompt)], 
-                                state, 
-                                f"paper analysis {i}"
-                            )
-                            basic_analysis["analysis"] = detailed_analysis
-                            
-                    except Exception as e:
-                        print(f"  ⚠️ Using basic analysis due to: {e}")
-                        state["use_fallback"] = True
-                
-                analyses.append(basic_analysis)
-                print(f"✅ Completed analysis for paper {i}")
-                
+                analyses.append(analysis)
+                print(f"Completed analysis for paper {i}")
             except Exception as e:
-                print(f"❌ Error analyzing paper {i}: {e}")
+                print(f"Error analyzing paper {i}: {e}")
                 continue
-        
         state["paper_analyses"] = analyses
         state["current_step"] = "analysis_completed"
         state["step_count"] = 2
+        state["api_call_count"] = self.api_call_count
         state["messages"].append(
             AIMessage(content=f"Successfully analyzed {len(analyses)} papers")
         )
-        
         return state
     
     def _identify_gaps_node(self, state: ResearchState) -> ResearchState:
-        """Node 3: Identify gaps with template or API call"""
-        print(f"\n🔍 Step 3: Identifying research gaps and improvements")
-        
+        """Node 3: Identify gaps and improvement opportunities"""
+        print(f"\nStep 3: Identifying research gaps and improvements")
         try:
-            if state.get("use_fallback", False) or not self._can_make_api_call(state):
-                # Use template-based gap analysis
-                print("📋 Using template-based gap analysis")
-                gaps_content = f"""
-                **Technical Gaps in {state['topic']}:**
-                1. **Limited Few-Shot Learning**: Current approaches require extensive examples
-                2. **Domain Adaptation**: Poor transfer across different domains
-                3. **Prompt Sensitivity**: High variance based on prompt formulation
-                4. **Evaluation Standardization**: Lack of consistent evaluation metrics
-                
-                **Research Opportunities:**
-                - Develop more robust few-shot learning techniques
-                - Create domain-agnostic prompting strategies
-                - Design adaptive prompt generation systems
-                - Establish comprehensive evaluation frameworks
-                """
+            if not state["paper_analyses"]:
+                state["identified_gaps"] = "No papers analyzed. Default gap: Limited exploration of adaptive prompt engineering for domain-specific tasks."
+                state["messages"].append(AIMessage(content="No papers analyzed, using default gap analysis"))
+                print("Using default gap analysis due to no analyses")
             else:
-                # Try one API call for gap analysis
                 papers_summary = ""
-                for analysis in state["paper_analyses"]:
-                    papers_summary += f"- {analysis['paper_title']}: {analysis['analysis'][:200]}...\n"
-                
-                gap_prompt = f"""
-                Identify 4 key research gaps in {state['topic']} based on:
-                {papers_summary[:1000]}
-                
-                Format: **Gap Name**: Description (max 50 words each)
+                for i, analysis in enumerate(state["paper_analyses"], 1):
+                    papers_summary += f"\n--- Paper {i}: {analysis['paper_title']} ---\n"
+                    papers_summary += f"Authors: {', '.join(analysis['authors'])}\n"
+                    papers_summary += f"Analysis:\n{analysis['analysis']}\n"
+                gap_analysis_prompt = f"""
+                Analyze the state of research on: {state['topic']}
+                Based on {len(state['paper_analyses'])} papers:
+                {papers_summary}
+                Identify in 100 words:
+                1. Common Limitations
+                2. Research Gaps
+                3. Methodological Improvements
+                4. Novel Applications
+                5. Technical Innovations
+                Provide a concise gap analysis for a new research paper.
                 """
-                
-                gaps_content = self._safe_api_call(
-                    [HumanMessage(content=gap_prompt)], 
-                    state, 
-                    "gap analysis"
-                )
-            
-            state["identified_gaps"] = gaps_content
+                response = self._retry_with_backoff(self.llm.invoke, [HumanMessage(content=gap_analysis_prompt)])
+                state["identified_gaps"] = response.content
             state["current_step"] = "gaps_identified"
             state["step_count"] = 3
-            print("✅ Gap analysis completed")
-            
+            state["api_call_count"] = self.api_call_count
+            state["messages"].append(
+                AIMessage(content="Successfully identified research gaps and improvement opportunities")
+            )
+            print("Gap analysis completed")
         except Exception as e:
-            print(f"❌ Using fallback gap analysis: {e}")
-            state["identified_gaps"] = f"Research gaps in {state['topic']} include methodological improvements, evaluation standardization, and practical applications."
-            
+            print(f"Error in gap analysis: {e}")
+            state["identified_gaps"] = "Error occurred during gap analysis. Default gap: Limited exploration of adaptive prompt engineering."
+            state["messages"].append(AIMessage(content=f"Error in gap analysis: {str(e)}"))
+            state["api_call_count"] = self.api_call_count
         return state
     
     def _generate_paper_node(self, state: ResearchState) -> ResearchState:
-        """Node 4: Generate paper using templates (minimal/no API calls)"""
-        print(f"\n📝 Step 4: Generating research paper using templates")
-        
+        """Node 4: Generate a new research paper proposal"""
+        print(f"\nStep 4: Generating new research paper")
         try:
-            # Generate paper using templates to avoid API quota issues
-            topic = state['topic']
-            gaps = state.get('identified_gaps', 'Various research gaps exist')
+            paper_generation_prompt = f"""
+            You are an expert academic researcher. Write a comprehensive LaTeX research paper proposal addressing the research opportunities in the given topic.
             
-            # Template-based paper generation
-            complete_paper = f"""\\documentclass{{article}}
-\\usepackage[utf8]{{inputenc}}
-\\usepackage{{amsmath, amsfonts, amssymb}}
-\\usepackage{{graphicx}}
-\\usepackage[margin=1in]{{geometry}}
-
-\\begin{{document}}
-
-\\title{{Advancing {topic.title()}: A Novel Framework for Enhanced Performance}}
-\\author{{Research Team}}
-\\date{{\\today}}
-
-\\maketitle
-
-\\begin{{abstract}}
-This paper presents a comprehensive investigation into {topic}, addressing current limitations in the field. We propose a novel framework that integrates advanced techniques to overcome existing challenges. Our approach demonstrates significant improvements in performance metrics while maintaining computational efficiency. The proposed methodology contributes to the advancement of {topic} research and provides practical solutions for real-world applications. Experimental validation confirms the effectiveness of our approach across multiple benchmarks.
-\\end{{abstract}}
-
-\\section{{Introduction}}
-
-The field of {topic} has gained significant attention in recent years due to its potential applications across various domains. Despite substantial progress, several challenges remain that limit the practical deployment of current approaches. This paper addresses these limitations by proposing a novel framework that combines state-of-the-art techniques with innovative methodologies.
-
-The primary contributions of this work include: (1) identification of key limitations in existing approaches, (2) development of a comprehensive framework addressing these limitations, (3) extensive experimental validation across multiple datasets, and (4) practical guidelines for implementation.
-
-The remainder of this paper is organized as follows: Section 2 presents our proposed methodology, Section 3 discusses expected results, and Section 4 concludes with future research directions.
-
-\\section{{Methodology}}
-
-\\subsection{{Proposed Framework}}
-Our approach builds upon recent advances in {topic} while addressing fundamental limitations identified in the literature. The framework consists of three main components: (1) an adaptive learning mechanism, (2) a robust evaluation system, and (3) an optimization module.
-
-\\subsection{{Technical Innovation}}
-The key innovation lies in the integration of multiple complementary techniques that work synergistically to improve overall performance. Our method introduces novel algorithms for handling edge cases and improving generalization across different scenarios.
-
-\\subsection{{Implementation Details}}
-The proposed system is designed for scalability and efficiency. Implementation follows industry best practices and includes comprehensive error handling and monitoring capabilities.
-
-\\section{{Expected Results}}
-
-Based on preliminary experiments and theoretical analysis, we anticipate significant improvements in key performance metrics. The proposed approach is expected to achieve 15-25\\% improvement over existing baselines across standard benchmarks.
-
-Key expected outcomes include enhanced accuracy, improved robustness, and reduced computational requirements. These improvements make the approach suitable for practical deployment in resource-constrained environments.
-
-\\section{{Conclusion}}
-
-This paper presents a novel framework for {topic} that addresses key limitations in existing approaches. The proposed methodology demonstrates promising theoretical properties and is expected to achieve significant practical improvements.
-
-Future work will focus on extending the framework to additional domains and investigating advanced optimization techniques. We believe this research contributes meaningfully to the advancement of {topic} and provides a solid foundation for future investigations.
-
-\\section{{References}}
-\\begin{{thebibliography}}{{9}}
-\\bibitem{{ref1}} Smith, J. et al. (2024). "Advanced Techniques in {topic}". Journal of AI Research, 15(3), 45-67.
-\\bibitem{{ref2}} Johnson, A. and Brown, B. (2023). "Comprehensive Survey of {topic}". Conference on Machine Learning, pp. 123-145.
-\\bibitem{{ref3}} Davis, C. (2024). "Practical Applications of {topic}". IEEE Transactions on AI, 8(2), 78-92.
-\\bibitem{{ref4}} Wilson, D. et al. (2023). "Evaluation Metrics for {topic}". International Conference on AI, pp. 234-256.
-\\bibitem{{ref5}} Taylor, E. (2024). "Future Directions in {topic} Research". AI Review Quarterly, 12(4), 12-28.
-\\end{{thebibliography}}
-
-\\end{{document}}"""
+            Research Topic: {state['topic']}
+            Gap Analysis: {state['identified_gaps']}
             
-            state["research_proposal"] = complete_paper
+            Create a detailed academic paper (6-8 pages worth) with the following structure:
+            
+            1. **Title**: Innovative and specific title reflecting the research contribution
+            2. **Abstract**: 200-250 words covering problem, methodology, expected results, and significance
+            3. **Introduction**: 
+               - Background and context (400-500 words)
+               - Problem statement and motivation
+               - Research objectives and questions
+               - Paper organization
+            4. **Related Work**: 
+               - Review of existing approaches (300-400 words)
+               - Limitations of current methods
+               - Positioning of this work
+            5. **Methodology**: 
+               - Detailed proposed approach (500-600 words)
+               - Technical framework and architecture
+               - Experimental design and evaluation setup
+               - Data collection and analysis methods
+            6. **Expected Results**: 
+               - Anticipated outcomes and contributions (300-400 words)
+               - Evaluation metrics and success criteria
+               - Comparison with existing methods
+            7. **Discussion and Future Work**: 
+               - Expected impact and applications (300-400 words)
+               - Limitations and challenges
+               - Future research directions
+            8. **Conclusion**: Summary of contributions and significance (200 words)
+            9. **References**: Include at least 8-10 relevant citations
+            
+            Requirements:
+            - Generate a comprehensive paper with substantial content
+            - Use proper LaTeX format with \\documentclass{{article}}
+            - Include necessary packages (amsmath, graphicx, hyperref, cite, geometry)
+            - Use proper academic writing style with detailed explanations
+            - Include technical details and mathematical formulations where appropriate
+            - Add subsections to organize content clearly
+            - Ensure the content is substantive, technically sound, and innovative
+            - Write in full paragraphs with academic rigor
+            
+            CRITICAL LaTeX REQUIREMENTS:
+            - DO NOT include any \\includegraphics commands or figure environments
+            - DO NOT reference any external images or PNG/PDF files
+            - Escape all & characters in bibliography as \\& 
+            - Do not use tabular environments with & characters
+            - Only use text-based content, no images or graphics
+            - Ensure all special characters are properly escaped
+            
+            Generate ONLY the complete LaTeX document code. Be thorough and comprehensive.
+            """
+            response = self._retry_with_backoff(self.llm.invoke, [HumanMessage(content=paper_generation_prompt)])
+            print(f"[DEBUG] Generated response length: {len(response.content) if response and response.content else 0}")
+            
+            if not response or not response.content or len(response.content.strip()) < 100:
+                print("Warning: Empty or very short response. Using default template.")
+                state["research_proposal"] = self._default_latex_template(state["topic"], state["identified_gaps"])
+            elif "\\end{document}" not in response.content:
+                print("Warning: Generated LaTeX may be incomplete. Attempting retry...")
+                retry_response = self._retry_with_backoff(self.llm.invoke, [HumanMessage(content=paper_generation_prompt)])
+                if retry_response and retry_response.content and "\\end{document}" in retry_response.content:
+                    state["research_proposal"] = self._clean_latex_content(retry_response.content)
+                else:
+                    print("Retry failed. Using default template.")
+                    state["research_proposal"] = self._default_latex_template(state["topic"], state["identified_gaps"])
+            else:
+                state["research_proposal"] = self._clean_latex_content(response.content)
+            
+            print(f"[DEBUG] Final research_proposal length: {len(state.get('research_proposal', ''))}")
             state["current_step"] = "paper_generated"
             state["step_count"] = 4
-            state["messages"].append(
-                AIMessage(content="Successfully generated research paper using templates")
-            )
-            
-            print(f"✅ Research paper generated using templates")
-            print(f"📄 Document length: {len(complete_paper)} characters")
-            print(f"🔧 Total API calls used: {state.get('api_call_count', 0)}")
-            
+            state["api_call_count"] = self.api_call_count
+            state["messages"].append(AIMessage(content="Successfully generated research paper proposal"))
+            print("Research paper generated")
         except Exception as e:
-            print(f"❌ Error generating paper: {e}")
-            # Create minimal fallback
-            fallback_paper = f"""\\documentclass{{article}}
-\\begin{{document}}
-\\title{{Research in {state['topic']}}}
-\\author{{Research Team}}
-\\date{{\\today}}
-\\maketitle
-\\section{{Introduction}}
-This paper explores {state['topic']}.
-\\section{{Conclusion}}
-Further research is needed.
-\\end{{document}}"""
-            state["research_proposal"] = fallback_paper
-            
+            print(f"Error generating paper: {e}")
+            state["research_proposal"] = self._default_latex_template(state["topic"], state["identified_gaps"])
+            state["messages"].append(AIMessage(content=f"Error generating paper: {str(e)}. Using default template"))
+            state["current_step"] = "paper_generated"
+            state["step_count"] = 4
+            state["api_call_count"] = self.api_call_count
+            print("Using default LaTeX template due to error")
         return state
     
-    def _create_pdf_node(self, state: ResearchState) -> ResearchState:
-        """Node 5: Create PDF with validation"""
-        print(f"\n📄 Step 5: Creating PDF document")
+    def _clean_latex_content(self, content: str) -> str:
+        """Clean LaTeX content by removing markdown code blocks and fixing LaTeX syntax"""
+        if not content:
+            return ""
         
+        # Remove markdown code blocks
+        content = content.strip()
+        if content.startswith("```latex"):
+            content = content[8:]  # Remove ```latex
+        if content.startswith("```"):
+            content = content[3:]   # Remove ```
+        if content.endswith("```"):
+            content = content[:-3]  # Remove trailing ```
+        
+        # Clean up any extra whitespace
+        content = content.strip()
+        
+        # Fix LaTeX special characters in bibliography sections
+        content = self._fix_latex_bibliography(content)
+        
+        # Remove image references that don't exist
+        content = self._remove_image_references(content)
+        
+        return content
+    
+    def _fix_latex_bibliography(self, content: str) -> str:
+        """Fix common LaTeX syntax errors in bibliography sections"""
+        lines = content.split('\n')
+        fixed_lines = []
+        in_bibliography = False
+        
+        for line in lines:
+            # Check if we're in bibliography section
+            if '\\begin{thebibliography}' in line or '\\bibitem' in line:
+                in_bibliography = True
+            elif '\\end{thebibliography}' in line:
+                in_bibliography = False
+            
+            # Fix & characters in bibliography entries
+            if in_bibliography and '&' in line and '\\&' not in line:
+                # Only fix standalone & that aren't already escaped
+                line = line.replace(' & ', ' \\& ')
+                line = line.replace('&', '\\&')
+                # Fix double escaping that might occur
+                line = line.replace('\\\\&', '\\&')
+            
+            fixed_lines.append(line)
+        
+        return '\n'.join(fixed_lines)
+    
+    def _remove_image_references(self, content: str) -> str:
+        """Remove image/figure references that don't have actual files"""
+        lines = content.split('\n')
+        cleaned_lines = []
+        skip_figure = False
+        
+        for line in lines:
+            # Start of figure environment
+            if '\\begin{figure}' in line:
+                skip_figure = True
+                continue
+            # End of figure environment
+            elif '\\end{figure}' in line and skip_figure:
+                skip_figure = False
+                continue
+            # Skip lines inside figure environment
+            elif skip_figure:
+                continue
+            # Remove references to figures in text
+            elif '\\ref{fig:' in line or 'Figure ' in line or 'shown in Figure' in line:
+                # Replace figure references with generic text
+                line = line.replace('shown in Figure 1.', 'implemented as follows.')
+                line = line.replace('Figure ', '')
+                line = line.replace('\\ref{fig:framework_architecture}', 'the proposed framework')
+                cleaned_lines.append(line)
+            else:
+                cleaned_lines.append(line)
+        
+        return '\n'.join(cleaned_lines)
+    
+    def _default_latex_template(self, topic: str, gaps: str) -> str:
+        """Generate a default LaTeX template if LLM fails"""
+        return f"""
+\\documentclass{{article}}
+\\usepackage[utf8]{{inputenc}}
+\\usepackage{{amsmath, amsfonts, amssymb}}
+\\usepackage[numbers]{{natbib}}
+\\usepackage{{hyperref}}
+\\usepackage[margin=1in]{{geometry}}
+\\usepackage{{times}}
+\\begin{{document}}
+\\title{{Advancing {topic.capitalize()}: Addressing Identified Research Gaps}}
+\\author{{AI Research Team}}
+\\date{{August 2025}}
+\\maketitle
+\\begin{{abstract}}
+This paper proposes a novel approach to advance {topic.lower()} by addressing key research gaps. Based on identified limitations, we propose a framework to enhance prompt engineering techniques, focusing on adaptability and efficiency. The approach leverages advanced NLP models to improve performance across domains, offering significant contributions to automated research workflows.
+\\end{{abstract}}
+\\section{{Introduction}}
+{topic.capitalize()} is critical for optimizing large language models \\cite{{brown2020}}. Current research shows gaps in adaptive prompting \\cite{{lee2024}}. This paper aims to address these by proposing a scalable framework. Objectives include improving prompt efficiency and generalizability.
+\\section{{Methodology}}
+We propose a modular framework integrating LangGraph and LLMs to address gaps: {gaps[:100]}. The approach includes dynamic prompt optimization and evaluation across datasets. Experiments will compare performance against baselines \\cite{{brown2020}}.
+\\section{{Expected Results}}
+Anticipated outcomes include a 20\\% improvement in prompt efficiency. Metrics include task accuracy and computational cost. Comparisons with existing methods will validate effectiveness.
+\\section{{Discussion}}
+This work could transform automated research workflows. Limitations include dependency on API availability. Future work will explore cross-domain applications.
+\\section{{Conclusion}}
+This proposal outlines a novel approach to advance {topic.lower()}, addressing key gaps with a scalable framework.
+\\begin{{thebibliography}}{{9}}
+\\bibitem{{brown2020}} Brown, T., et al., "Language Models are Few-Shot Learners," arXiv:2005.14165, 2020.
+\\bibitem{{lee2024}} Lee, K., "Automated Research Synthesis," arXiv:2401.09876, 2024.
+\\end{{thebibliography}}
+\\end{{document}}
+"""
+    
+    def _create_pdf_node(self, state: ResearchState) -> ResearchState:
+        """Node 5: Create PDF from LaTeX content"""
+        print(f"\nStep 5: Creating PDF document")
         try:
             latex_content = state.get("research_proposal", "")
+            print(f"[DEBUG] LaTeX content length: {len(latex_content)}")
             
             if not latex_content.strip():
-                raise ValueError("No LaTeX content found")
+                print("No LaTeX content found. Using default template.")
+                latex_content = self._default_latex_template(state["topic"], state["identified_gaps"])
+            elif "\\documentclass" not in latex_content:
+                print("Invalid LaTeX format. Using default template.")
+                latex_content = self._default_latex_template(state["topic"], state["identified_gaps"])
+            elif "\\end{document}" not in latex_content:
+                print("Adding missing \\end{document}")
+                latex_content += "\\end{document}"
             
-            print("🔍 Validating LaTeX structure...")
-            
-            # Basic validation
-            required_elements = ["\\documentclass", "\\begin{document}", "\\end{document}"]
-            for element in required_elements:
-                if element not in latex_content:
-                    print(f"⚠️ Missing: {element}")
-            
-            print("🔄 Rendering PDF...")
+            print(f"[DEBUG] Using LaTeX content length: {len(latex_content)}")
             pdf_path = render_latex_pdf.invoke({"latex_content": latex_content})
-            
             state["final_pdf_path"] = pdf_path
             state["current_step"] = "completed"
             state["step_count"] = 5
+            state["api_call_count"] = self.api_call_count
             state["messages"].append(AIMessage(content=f"Successfully created PDF at: {pdf_path}"))
-            
-            print(f"✅ PDF created successfully at: {pdf_path}")
-            
+            print(f"PDF created successfully at: {pdf_path}")
         except Exception as e:
-            print(f"❌ Error creating PDF: {e}")
-            state["final_pdf_path"] = ""
-            state["messages"].append(AIMessage(content=f"Error creating PDF: {str(e)}"))
-            
+            error_msg = str(e)
+            if "cannot find the file specified" in error_msg or "pdflatex" in error_msg:
+                print(f"LaTeX not installed - saving LaTeX source instead")
+                # Save LaTeX source when PDF compilation fails
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                output_dir = Path(__file__).parent / "output"
+                output_dir.mkdir(exist_ok=True)
+                tex_file = output_dir / f"paper_{timestamp}.tex"
+                with open(tex_file, 'w', encoding='utf-8') as f:
+                    f.write(latex_content)
+                state["final_pdf_path"] = str(tex_file)
+                state["messages"].append(AIMessage(content=f"LaTeX source saved to: {tex_file} (PDF compilation requires pdflatex installation)"))
+                print(f"LaTeX source saved to: {tex_file}")
+            else:
+                print(f"Error creating PDF: {e}")
+                state["final_pdf_path"] = ""
+                state["messages"].append(AIMessage(content=f"Error creating PDF: {str(e)}"))
+            state["api_call_count"] = self.api_call_count
         return state
     
     def research(self, topic: str) -> Dict[str, Any]:
         """
-        Main method to run the quota-safe research workflow
-        """
-        print(f"🚀 Starting Quota-Safe AI Research Agent for topic: '{topic}'")
-        print(f"⚡ Max API calls allowed: {self.max_api_calls}")
-        print(f"⏱️ Min delay between calls: {self.min_api_delay}s")
-        print("=" * 60)
+        Main method to run the complete research workflow
         
-        # Initialize state
+        Args:
+            topic: The research topic to investigate
+            
+        Returns:
+            Dictionary containing the final results and file path
+        """
+        print(f"Starting AI Research Agent for topic: '{topic}'")
+        print("=" * 60)
         initial_state = ResearchState(
             topic=topic,
             papers=[],
@@ -481,78 +699,45 @@ Further research is needed.
             messages=[HumanMessage(content=f"Research topic: {topic}")],
             step_count=0,
             current_step="initialized",
-            api_call_count=0,
-            last_api_call_time=0.0,
-            use_fallback=False
+            api_call_count=0
         )
-        
         try:
-            # Run the workflow
             final_state = self.workflow.invoke(initial_state)
-            
-            # Prepare results
             results = {
                 "topic": final_state["topic"],
                 "papers_found": len(final_state["papers"]),
                 "papers_analyzed": len(final_state["paper_analyses"]),
                 "final_pdf_path": final_state["final_pdf_path"],
                 "workflow_completed": final_state["current_step"] == "completed",
-                "api_calls_used": final_state.get("api_call_count", 0),
-                "used_fallback": final_state.get("use_fallback", False),
-                "latex_content_length": len(final_state.get("research_proposal", "")),
-                "success": final_state["current_step"] == "completed"
+                "identified_gaps": final_state["identified_gaps"],
+                "steps_completed": final_state["step_count"],
+                "api_calls_made": final_state["api_call_count"]
             }
-            
             print("\n" + "=" * 60)
-            print("🎉 Quota-Safe Research workflow completed!")
-            print(f"📄 Papers found: {results['papers_found']}")
-            print(f"📊 Papers analyzed: {results['papers_analyzed']}")
-            print(f"🔧 API calls used: {results['api_calls_used']}/{self.max_api_calls}")
-            print(f"🛡️ Used fallback mode: {results['used_fallback']}")
-            print(f"📋 Final PDF: {results['final_pdf_path']}")
-            print(f"✅ Success: {results['success']}")
+            print("Research workflow completed!")
+            print(f"Papers found: {results['papers_found']}")
+            print(f"Papers analyzed: {results['papers_analyzed']}")
+            print(f"Final PDF: {results['final_pdf_path']}")
+            print(f"API calls made: {results['api_calls_made']}")
             print("=" * 60)
-            
             return results
-            
         except Exception as e:
-            print(f"\n❌ Workflow failed: {e}")
+            print(f"\nWorkflow failed: {e}")
             return {
                 "topic": topic,
                 "error": str(e),
                 "workflow_completed": False,
                 "final_pdf_path": "",
-                "success": False
+                "steps_completed": 0,
+                "api_calls_made": self.api_call_count
             }
 
-
 def main():
-    """Example usage with quota safety"""
-    try:
-        # Check environment variables
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            print("❌ GOOGLE_API_KEY not found in environment variables")
-            print("Please set your API key in .env file or environment variables")
-            return
-        
-        # Initialize the agent
-        agent = AIResearcherAgent()
-        
-        # Use a focused topic
-        topic = "few-shot prompt engineering for large language models"
-        
-        # Run the research workflow
-        results = agent.research(topic)
-        
-        # Print results
-        print(f"\n📋 Final Results:")
-        for key, value in results.items():
-            print(f"  {key}: {value}")
-            
-    except Exception as e:
-        print(f"Fatal error: {e}")
-
+    """Example usage of the AI Researcher Agent"""
+    agent = AIResearcherAgent(model_name="gemini-2.0-flash", api_key=os.getenv("GOOGLE_API_KEY"), max_papers=2, max_api_calls=10)
+    topic = "prompt engineering for language model"
+    results = agent.research(topic)
+    print(f"\nFinal Results: {json.dumps(results, indent=2)}")
 
 if __name__ == "__main__":
     main()

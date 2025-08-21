@@ -4,20 +4,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This repository contains a full-stack AI agents platform with FastAPI backend and Next.js frontend. The platform supports multiple types of AI agents that can use different tools and capabilities through the Groq API and Google Custom Search. Key features include ChatGPT-style chat interface, Medium-style blog typography, and advanced response formatting.
+This repository contains a full-stack AI agents platform with FastAPI backend and Next.js frontend. The platform supports multiple types of AI agents that can use different tools and capabilities through the Groq API, Google Custom Search, and Google Gemini. Key features include ChatGPT-style chat interface, Medium-style blog typography, advanced response formatting, and an AI Research Agent that can search academic papers and generate research proposals with PDF output.
 
 ## Architecture
 
 ### Core Components
 
-1. **FastAPI Backend** (`main.py`) - REST API server with CORS middleware
-2. **Agent Classes** - Three main agent types in `/agents/` directory:
+1. **FastAPI Backend** (`backend/main.py`) - REST API server with CORS, authentication, and security middleware
+2. **Agent Classes** - Four main agent types in `/agents/` directory:
    - `GroqToolAgent` (`first_agent.py`) - Math-focused agent with 6 mathematical tools
    - `IntelligentToolAgent` (`second_agent.py`) - Web-capable agent with search, weather, news tools
    - `AutonomousAgent` (`third_agent.py`) - Advanced autonomous agent with Google Custom Search
-3. **Next.js Frontend** (`frontend/`) - Modern React-based web interface with Prisma database
-4. **Legacy Frontend** (`index.html`) - Original single-file web interface
-5. **Requirements** (`requirements.txt`) - Python dependencies including groq, fastapi, requests, beautifulsoup4
+   - `ResearcherToolAgent` (`fourth_agent.py`) - AI Research Agent for academic paper analysis and generation
+3. **Next.js Frontend** (`frontend/`) - Modern React-based web interface with Prisma database and research page
+4. **AI Research System** (`backend/agents/fourthagent/`) - Complete academic research workflow with arXiv integration
+5. **Security & Configuration** (`backend/config/`, `backend/auth/`) - JWT authentication, input validation, secure settings
 
 ### Agent Architecture Patterns
 
@@ -50,6 +51,12 @@ netstat -ano | findstr :800  # Windows
 python comprehensive_agent_test.py
 python final_verification_test.py
 python test_enhanced_autonomous.py
+
+# Test AI Research Agent (requires Google API key)
+cd backend/agents/fourthagent
+python ai-researcher-improved.py  # Complete research workflow
+python ai-researcher.py           # Simplified research workflow
+python test_ai_researcher.py      # Unit tests
 ```
 
 ### Frontend Development (Next.js)
@@ -116,14 +123,32 @@ The modern frontend is built with:
 - Simulated and real tool execution
 - Located in `backend/agents/third_agent.py`
 
+**Research Agent (ResearcherToolAgent):**
+- Academic paper search via arXiv API
+- PDF content extraction and analysis
+- Research gap identification
+- LaTeX paper generation with PDF compilation
+- Google Gemini API integration for AI analysis
+- Located in `backend/agents/fourth_agent.py` with core logic in `backend/agents/fourthagent/`
+
 ### Modern Chat Interface
 
 The chat interface (`frontend/app/chat/page.tsx`) features:
 - **ChatGPT-style layout**: Full-screen design optimized for extended conversations
-- **Agent deduplication**: Ensures exactly 3 unique agents (Math, Intelligent, Autonomous)
+- **Agent deduplication**: Ensures exactly 4 unique agents (Math, Intelligent, Autonomous, Research)
 - **Smart response formatting**: Automatically formats search results as interactive cards
 - **Medium typography**: Professional typography for blog reading pages
 - **FormattedAgentResponse component**: Handles markdown, search results, and rich content
+- **Streaming support**: Real-time progress updates for research workflows
+
+### AI Research Interface
+
+The research interface (`frontend/app/research/page.tsx`) features:
+- **Real-time progress tracking**: Live updates through each research step
+- **Academic paper search**: Direct integration with arXiv database
+- **PDF generation**: Download professionally formatted research papers
+- **Step-by-step workflow**: Visual progress indicators for 5-step research process
+- **Error handling**: Graceful fallbacks and user-friendly error messages
 
 ### Database Integration
 
@@ -198,6 +223,14 @@ def register_tool(self, name: str, func: Callable, description: str, params_sche
 - Real-time web search using Google Custom Search API
 - Multi-step autonomous reasoning
 - Error handling for API limits and timeouts
+
+**AI Research Agent Integration (fourth_agent.py):**
+- Wrapper class that integrates with the LangGraph-based research system
+- Academic paper search using arXiv API (`backend/agents/fourthagent/arxiv-tool.py`)
+- PDF content extraction and analysis (`backend/agents/fourthagent/read_pdf.py`)
+- Research proposal generation using Google Gemini
+- LaTeX to PDF compilation (`backend/agents/fourthagent/write-pdf.py`)
+- Complete research workflow with 5 steps: search, analyze, identify gaps, generate paper, create PDF
 
 ## Critical Fixes and Solutions
 
@@ -294,21 +327,37 @@ except Exception as e:
 ### Demo Endpoints
 - `POST /demo/create-sample-agent` - Create math agent
 - `POST /demo/create-intelligent-agent` - Create web agent
+- `POST /demo/create-autonomous-agent` - Create autonomous agent
+- `POST /create-research-agent` - Create research agent (public endpoint)
+
+### Streaming Endpoints
+- `POST /agents/{id}/chat/stream` - Real-time streaming chat responses
+- Special handling for research agent with step-by-step progress updates
 
 ## Configuration
 
 ### Environment Variables
-- None currently used (API keys hardcoded for demo)
+Configuration managed via `backend/config/settings.py` using Pydantic BaseSettings:
+- `GROQ_API_KEY` - Required for all agents using Groq LLMs
+- `GOOGLE_API_KEY` - Required for research agent (Gemini API)
+- `GOOGLE_CUSTOM_SEARCH_API_KEY` - Optional for enhanced web search
+- `GOOGLE_CUSTOM_SEARCH_ENGINE_ID` - Optional for enhanced web search
+- `DATABASE_URL` - Database connection string (defaults to SQLite)
+- `JWT_SECRET_KEY` - Authentication secret key
+- `DEBUG` - Development mode toggle
+- Environment variables can be set in `.env` file
 
 ### Port Configuration
-- **Backend**: Runs on port 8002 (not 8000)
+- **Backend**: Runs on port 8001 (configurable in settings)
 - **Frontend**: Runs on port 3000
-- **API Configuration**: `frontend/app/lib/api.ts` configures base URL
+- **API Configuration**: `frontend/app/lib/api.ts` configures base URL to match backend port
+- **Important**: Backend port may change between 8001-8002 depending on configuration
 
 ### API Keys
-- Groq API key: Located in backend agent files
-- Google Custom Search API: In `third_agent.py`
-- Configuration should be moved to environment variables for production
+- **Groq API**: Used by all agents for LLM functionality
+- **Google Gemini API**: Used by research agent for paper analysis and generation
+- **Google Custom Search API**: Used by intelligent and autonomous agents for web search
+- **Configuration**: Set via environment variables in `.env` file or `backend/config/settings.py`
 
 ### Typography Systems
 
@@ -341,6 +390,11 @@ All dependencies listed in `requirements.txt` and `frontend/package.json` with s
    - "Weather in Tokyo" → Should use get_weather tool
    - "Latest news" → Should use get_latest_news tool
 
+3. **Research Agent Tests:**
+   - "Research machine learning" → Should trigger full research workflow
+   - "Find papers on quantum computing" → Should search arXiv and return papers
+   - "Conduct research on prompt engineering" → Should generate complete research paper with PDF
+
 ### Debug Output Interpretation
 
 Look for these debug patterns:
@@ -353,12 +407,14 @@ Look for these debug patterns:
 
 ### Common Issues
 
-1. **Port conflicts:** Use port 8002 for backend, not 8000
-2. **Agent duplication:** Frontend shows 4 agents instead of 3 - check deduplication logic in `getOrderedUniqueAgents()`
+1. **Port conflicts:** Use port 8001 for backend (configurable), frontend on 3000
+2. **Agent duplication:** Frontend shows more agents than expected - check deduplication logic in `getOrderedUniqueAgents()`
 3. **Routes manifest error:** Ensure Next.js uses standard `.next` build directory, not custom paths
 4. **Search results formatting:** Raw search results display - verify `FormattedAgentResponse` component is working
 5. **Typography issues:** Check that `prose-chat` and `prose-blog` classes are applied correctly
-6. **API connection errors:** Verify backend is running on correct port (8002) and frontend API configuration matches
+6. **API connection errors:** Verify backend is running on correct port and frontend API configuration matches
+7. **Research agent failures:** Ensure Google API key is configured in `.env` file for research functionality
+8. **PDF generation errors:** Verify LaTeX installation and write permissions for output directory
 
 ### Performance Considerations
 
@@ -441,5 +497,48 @@ curl -X POST http://localhost:8000/demo/create-sample-agent
 - **Markdown support** for headers, lists, bold/italic text
 - **Sources section formatting** with visual separation
 - **Code block styling** with proper syntax highlighting
+
+## AI Research Agent Architecture
+
+### Research Workflow Components
+
+The AI Research Agent follows a 5-step LangGraph workflow:
+
+1. **Paper Search** (`_search_papers_node`) - Query arXiv API for relevant papers
+2. **Paper Analysis** (`_analyze_papers_node`) - Extract and analyze PDF content 
+3. **Gap Identification** (`_identify_gaps_node`) - Use Gemini to identify research opportunities
+4. **Paper Generation** (`_generate_paper_node`) - Create LaTeX research proposal
+5. **PDF Creation** (`_create_pdf_node`) - Compile LaTeX to PDF using pdflatex
+
+### Key Dependencies
+
+**Research Agent Specific:**
+- `langgraph` - Workflow orchestration
+- `langchain-google-genai` - Google Gemini integration
+- `PyPDF2` - PDF content extraction
+- `requests` - arXiv API calls
+- `pdflatex` - LaTeX compilation (system dependency)
+
+**Core Platform:**
+- `fastapi` - Backend API framework
+- `groq` - LLM API client
+- `next.js` - Frontend framework
+- `prisma` - Database ORM
+- `tailwindcss` - Styling framework
+
+### File Structure for Research Agent
+
+```
+backend/agents/fourthagent/
+├── ai-researcher-improved.py    # Main LangGraph workflow
+├── ai-researcher.py             # Simplified version
+├── arxiv-tool.py                # arXiv API integration
+├── read_pdf.py                  # PDF content extraction
+├── write-pdf.py                 # LaTeX to PDF compilation
+├── test_ai_researcher.py        # Unit tests
+├── requirements.txt             # Research agent dependencies
+├── .env                         # API keys (Google)
+└── output/                      # Generated PDFs and LaTeX files
+```
 
 This documentation provides comprehensive guidance for future development and maintenance of the AI agents platform.

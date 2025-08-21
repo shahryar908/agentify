@@ -1,61 +1,66 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import { ThemeProvider } from "@/components/theme-provider";
-import { ErrorBoundary } from "@/components/error-boundary";
+import type { Metadata } from "next"
+import { Geist } from "next/font/google"
+import "./globals.css"
+import { AuthProvider } from './contexts/auth-context'
+import { ThemeProvider } from './components/theme-provider'
+import { Header } from './components/header'
+import { Footer } from './components/footer'
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const geist = Geist({
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+})
 
 export const metadata: Metadata = {
-  title: "AI Agents Platform | Build & Deploy Intelligent Agents",
-  description: "Create specialized AI agents for mathematics, web research, and autonomous planning. Experience the future of AI automation with live demonstrations and interactive tutorials.",
-  keywords: "AI agents, artificial intelligence, automation, chatbots, machine learning, web agents, math agents",
+  title: "AI Agents Platform - Advanced AI Assistant Technology",
+  description: "Experience the next generation of AI assistance with specialized agents for mathematical calculations, web research, and autonomous reasoning. Powered by advanced AI models and professional tools.",
+  keywords: "AI agents, artificial intelligence, chatbot, web search, mathematics, autonomous reasoning, AI assistant",
   authors: [{ name: "AI Agents Platform" }],
   openGraph: {
-    title: "AI Agents Platform",
-    description: "Build and interact with powerful AI agents",
+    title: "AI Agents Platform - Advanced AI Assistant Technology",
+    description: "Experience specialized AI agents for different tasks - from calculations to research and autonomous problem-solving.",
     type: "website",
+    siteName: "AI Agents Platform",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "AI Agents Platform - Advanced AI Assistant Technology",
+    description: "Experience specialized AI agents for different tasks - from calculations to research and autonomous problem-solving.",
   },
   robots: {
     index: true,
     follow: true,
   },
-};
-
-export const viewport = {
-  width: 'device-width',
-  initialScale: 1,
-};
+}
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: {
+  children: React.ReactNode
+}) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <ErrorBoundary>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-          >
-            {children}
-          </ThemeProvider>
-        </ErrorBoundary>
+      <head>
+        <link rel="icon" href="/favicon.ico" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </head>
+      <body className={geist.className}>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <AuthProvider>
+            <div className="min-h-screen flex flex-col">
+              <Header />
+              <main className="flex-1">
+                {children}
+              </main>
+              <Footer />
+            </div>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
-  );
+  )
 }

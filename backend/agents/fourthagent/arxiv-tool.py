@@ -2,7 +2,7 @@
 import requests
 
 
-def search_arxiv_papers(topic: str, max_results: int = 5) -> dict:
+def search_arxiv_papers(topic: str, max_results: int = 2) -> dict:
     query = "+".join(topic.lower().split())
     for char in list('()" '):
         if char in query:

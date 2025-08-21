@@ -4,16 +4,21 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
 import { Badge } from '../components/ui/badge'
-import { Send, Bot, User, Loader2, Calculator, Globe, Brain, Sparkles, Plus, MessageCircle, AlertCircle, Wifi, WifiOff, ArrowUp, ChevronDown, Zap, Star, Code, Search } from 'lucide-react'
-import { apiClient, type AgentInfo, type ChatResponse } from '../lib/api'
+import { Send, Bot, User, Loader2, Calculator, Globe, Brain, Sparkles, Plus, MessageCircle, AlertCircle, Wifi, WifiOff, ArrowUp, ChevronDown, Zap, Star, Code, Search, LogOut, Settings, GraduationCap } from 'lucide-react'
+import { apiClient, type AgentInfo, type ChatResponse, type StreamingChatChunk, ApiError, NetworkError, TimeoutError } from '../lib/api'
 import { AgentLoading, LoadingSpinner, ChatSkeleton } from '../components/loading'
 import { ErrorBoundary, SimpleErrorFallback } from '../components/error-boundary'
+import { useAuth, ProtectedRoute } from '../contexts/auth-context'
+import { ErrorRecovery, NetworkErrorCard, AuthenticationErrorCard } from '../components/error-recovery'
+import Link from 'next/link'
 
 interface Message {
-  type: 'user' | 'agent'
+  type: 'user' | 'agent' | 'streaming'
   content: string
   timestamp: string
   tools_used?: boolean
+  streaming_complete?: boolean
+  stream_data?: any
 }
 
 // Component to format agent responses with better structure
@@ -165,7 +170,8 @@ const FormattedAgentResponse: React.FC<{ content: string }> = ({ content }) => {
   return <div>{formatContent(content)}</div>
 }
 
-export default function ChatPage() {
+function ChatPageContent() {
+  const { user, logout } = useAuth()
   const [agents, setAgents] = useState<AgentInfo[]>([])
   const [selectedAgent, setSelectedAgent] = useState<AgentInfo | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
@@ -173,14 +179,16 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [isCreatingAgent, setIsCreatingAgent] = useState(false)
   const [isInitialLoading, setIsInitialLoading] = useState(true)
-  const [connectionError, setConnectionError] = useState<string | null>(null)
+  const [error, setError] = useState<Error | null>(null)
   const [isOnline, setIsOnline] = useState(true)
   const [showAgentSelector, setShowAgentSelector] = useState(false)
+  const [chatHistory, setChatHistory] = useState<Record<string, Message[]>>({})
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     fetchAgents()
+    loadChatHistory()
     
     // Check online status
     const handleOnline = () => setIsOnline(true)
@@ -189,9 +197,17 @@ export default function ChatPage() {
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
     
+    // Save chat history before page unload
+    const handleBeforeUnload = () => {
+      saveChatHistory()
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    
     return () => {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      saveChatHistory() // Save on component unmount
     }
   }, [])
 
@@ -203,9 +219,47 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
+  const loadChatHistory = () => {
+    try {
+      const saved = localStorage.getItem(`chat_history_${user?.id}`)
+      if (saved) {
+        setChatHistory(JSON.parse(saved))
+      }
+    } catch (error) {
+      console.warn('Failed to load chat history:', error)
+    }
+  }
+  
+  const saveChatHistory = () => {
+    try {
+      localStorage.setItem(`chat_history_${user?.id}`, JSON.stringify(chatHistory))
+    } catch (error) {
+      console.warn('Failed to save chat history:', error)
+    }
+  }
+  
+  // Load messages for selected agent
+  useEffect(() => {
+    if (selectedAgent?.id && chatHistory[selectedAgent.id]) {
+      setMessages(chatHistory[selectedAgent.id])
+    } else {
+      setMessages([])
+    }
+  }, [selectedAgent, chatHistory])
+  
+  // Save messages when they change
+  useEffect(() => {
+    if (selectedAgent?.id && messages.length > 0) {
+      setChatHistory(prev => ({
+        ...prev,
+        [selectedAgent.id]: messages
+      }))
+    }
+  }, [messages, selectedAgent])
+
   const fetchAgents = async () => {
     try {
-      setConnectionError(null)
+      setError(null)
       const agentsData = await apiClient.getAgents()
       
       // Filter to only keep unique agent types (latest one of each type)
@@ -220,15 +274,15 @@ export default function ChatPage() {
         return acc
       }, [])
       
-      // Ensure we have exactly the 3 agent types we want
-      const desiredTypes = ['math', 'intelligent', 'autonomous']
+      // Ensure we have exactly the 4 agent types we want
+      const desiredTypes = ['math', 'intelligent', 'autonomous', 'researcher']
       const filteredAgents = uniqueAgents.filter(agent => desiredTypes.includes(agent.agent_type))
       
       setAgents(filteredAgents)
       
-      // If we don't have all 3 agent types, create missing ones
-      if (filteredAgents.length < 3) {
-        console.log(`Only ${filteredAgents.length}/3 agents found, creating missing agents`)
+      // If we don't have all 4 agent types, create missing ones
+      if (filteredAgents.length < 4) {
+        console.log(`Only ${filteredAgents.length}/4 agents found, creating missing agents`)
         await createDemoAgents()
         return // createDemoAgents will call fetchAgents again
       }
@@ -245,19 +299,12 @@ export default function ChatPage() {
       }
     } catch (error) {
       console.error('Error fetching agents:', error)
+      setError(error as Error)
       
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      
-      if (errorMessage.includes('timeout') || errorMessage.includes('NetworkError')) {
-        setConnectionError('Connection timeout. Please check your internet connection.')
-      } else if (errorMessage.includes('Failed to fetch')) {
-        setConnectionError('Cannot connect to server. Make sure the backend is running on port 8002.')
-      } else {
-        setConnectionError(errorMessage)
+      // Try to create demo agents if backend is not available
+      if (error instanceof NetworkError || error instanceof ApiError) {
+        await createDemoAgents()
       }
-      
-      // Create demo agents if backend is not available
-      await createDemoAgents()
     } finally {
       setIsInitialLoading(false)
     }
@@ -286,6 +333,10 @@ export default function ChatPage() {
         promises.push(apiClient.createAutonomousAgent())
       }
       
+      if (!uniqueTypes.has('researcher')) {
+        promises.push(apiClient.createResearcherAgent())
+      }
+      
       if (promises.length > 0) {
         await Promise.all(promises)
       }
@@ -293,7 +344,7 @@ export default function ChatPage() {
       await fetchAgents()
     } catch (error) {
       console.error('Error creating demo agents:', error)
-      // Fallback to static agents - only the 3 unique types
+      // Fallback to static agents - only the 4 unique types
       const fallbackAgents = [
         {
           id: 'math-agent',
@@ -315,6 +366,13 @@ export default function ChatPage() {
           description: 'Advanced autonomous agent with Google Custom Search API and multi-step reasoning capabilities',
           agent_type: 'autonomous',
           tools: ['search_web', 'get_weather', 'analyze_weather', 'check_air_quality', 'get_time', 'search_news']
+        },
+        {
+          id: 'researcher-agent',
+          name: 'AI Research Agent',
+          description: 'Academic research agent that searches papers, analyzes literature, and generates research proposals with PDF output',
+          agent_type: 'researcher',
+          tools: ['research_topic', 'search_papers']
         }
       ]
       setAgents(fallbackAgents)
@@ -337,42 +395,143 @@ export default function ChatPage() {
     const currentMessage = inputMessage
     setInputMessage('')
     setIsLoading(true)
+    setError(null)
 
     try {
-      const response = await apiClient.chatWithAgent(selectedAgent.id, currentMessage)
-      
-      const agentMessage: Message = {
-        type: 'agent',
-        content: response.response,
-        timestamp: new Date().toISOString(),
-        tools_used: response.tools_used,
+      // Check if this is a researcher agent and the message suggests research
+      const isResearchQuery = selectedAgent.agent_type === 'researcher' && 
+        (currentMessage.toLowerCase().includes('research') || 
+         currentMessage.toLowerCase().includes('papers') ||
+         currentMessage.toLowerCase().includes('study') ||
+         currentMessage.toLowerCase().includes('analyze') ||
+         currentMessage.toLowerCase().includes('find papers'))
+
+      if (isResearchQuery) {
+        // Use streaming for research queries
+        let streamingMessage: Message = {
+          type: 'streaming',
+          content: '',
+          timestamp: new Date().toISOString(),
+          streaming_complete: false
+        }
+        
+        setMessages(prev => [...prev, streamingMessage])
+        let messageIndex = -1
+
+        try {
+          for await (const chunk of apiClient.chatWithAgentStream(selectedAgent.id, currentMessage)) {
+            if (chunk.content) {
+              setMessages(prev => {
+                const newMessages = [...prev]
+                if (messageIndex === -1) {
+                  messageIndex = newMessages.length - 1
+                }
+                
+                if (chunk.type === 'content') {
+                  // Append to existing content
+                  newMessages[messageIndex] = {
+                    ...newMessages[messageIndex],
+                    content: newMessages[messageIndex].content + chunk.content
+                  }
+                } else {
+                  // For progress, success, error types, append as new lines
+                  const separator = newMessages[messageIndex].content ? '\n\n' : ''
+                  newMessages[messageIndex] = {
+                    ...newMessages[messageIndex],
+                    content: newMessages[messageIndex].content + separator + chunk.content
+                  }
+                }
+                
+                return newMessages
+              })
+            }
+          }
+          
+          // Mark streaming as complete
+          setMessages(prev => {
+            const newMessages = [...prev]
+            if (messageIndex >= 0) {
+              newMessages[messageIndex] = {
+                ...newMessages[messageIndex],
+                type: 'agent',
+                streaming_complete: true
+              }
+            }
+            return newMessages
+          })
+          
+        } catch (streamError) {
+          // Fallback to regular chat if streaming fails
+          console.log('Streaming failed, falling back to regular chat:', streamError)
+          const response = await apiClient.chatWithAgent(selectedAgent.id, currentMessage)
+          
+          setMessages(prev => {
+            const newMessages = [...prev]
+            if (messageIndex >= 0) {
+              newMessages[messageIndex] = {
+                type: 'agent',
+                content: response.response,
+                timestamp: new Date().toISOString(),
+                tools_used: response.tools_used,
+                streaming_complete: true
+              }
+            }
+            return newMessages
+          })
+        }
+      } else {
+        // Use regular chat for non-research queries
+        const response = await apiClient.chatWithAgent(selectedAgent.id, currentMessage)
+        
+        const agentMessage: Message = {
+          type: 'agent',
+          content: response.response,
+          timestamp: new Date().toISOString(),
+          tools_used: response.tools_used,
+        }
+        setMessages(prev => [...prev, agentMessage])
       }
-      setMessages(prev => [...prev, agentMessage])
     } catch (error) {
       console.error('Error sending message:', error)
       
-      const errorString = error instanceof Error ? error.message : 'Unknown error'
+      let errorMessage: Message
       
-      // Check if it's an "Agent not found" error
-      if (errorString.includes('Agent not found') || errorString.includes('404')) {
-        console.log('Agent not found - refreshing agents list')
-        // Refresh agents and try to select a new one
+      if (error instanceof ApiError && error.statusCode === 404) {
+        // Agent not found - refresh agents list
         await fetchAgents()
-        
-        const errorMessage: Message = {
+        errorMessage = {
           type: 'agent',
           content: 'The selected agent is no longer available. I\'ve refreshed the agents list. Please select an agent from the dropdown above and try again.',
           timestamp: new Date().toISOString(),
         }
-        setMessages(prev => [...prev, errorMessage])
-      } else {
-        const errorMessage: Message = {
+      } else if (error instanceof ApiError && error.statusCode === 401) {
+        errorMessage = {
           type: 'agent',
-          content: 'I apologize, but I encountered an error processing your message. This might be because the backend service is not running. Please make sure the FastAPI server is running on port 8002.',
+          content: 'Your session has expired. Please log in again to continue chatting.',
           timestamp: new Date().toISOString(),
         }
-        setMessages(prev => [...prev, errorMessage])
+      } else if (error instanceof NetworkError) {
+        errorMessage = {
+          type: 'agent',
+          content: 'Connection failed. Please check your internet connection and try again.',
+          timestamp: new Date().toISOString(),
+        }
+      } else if (error instanceof TimeoutError) {
+        errorMessage = {
+          type: 'agent',
+          content: 'Request timed out. The agent might be busy. Please try again.',
+          timestamp: new Date().toISOString(),
+        }
+      } else {
+        errorMessage = {
+          type: 'agent',
+          content: 'I encountered an error processing your message. Please try again or contact support if the problem persists.',
+          timestamp: new Date().toISOString(),
+        }
       }
+      
+      setMessages(prev => [...prev, errorMessage])
+      setError(error as Error)
     } finally {
       setIsLoading(false)
     }
@@ -393,6 +552,8 @@ export default function ChatPage() {
         return Globe
       case 'autonomous':
         return Brain
+      case 'researcher':
+        return GraduationCap
       default:
         return Bot
     }
@@ -406,6 +567,8 @@ export default function ChatPage() {
         return 'from-green-500 to-emerald-500'
       case 'autonomous':
         return 'from-purple-500 to-pink-500'
+      case 'researcher':
+        return 'from-orange-500 to-red-500'
       default:
         return 'from-gray-500 to-gray-600'
     }
@@ -413,7 +576,7 @@ export default function ChatPage() {
 
   // Helper function to get ordered and unique agents
   const getOrderedUniqueAgents = (agentList: AgentInfo[]) => {
-    const agentTypeOrder = ['math', 'intelligent', 'autonomous']
+    const agentTypeOrder = ['math', 'intelligent', 'autonomous', 'researcher']
     const uniqueAgentMap = new Map<string, AgentInfo>()
     
     // Keep only the latest agent of each type
@@ -447,14 +610,14 @@ export default function ChatPage() {
 
   return (
     <ErrorBoundary fallback={SimpleErrorFallback}>
-      <div className="flex h-screen bg-background">
+      <div className="flex h-screen bg-gradient-to-br from-background via-background to-muted/10">
         {/* Main Chat Area - Full Screen Like ChatGPT */}
         <div className="flex-1 flex flex-col">
           {/* Top Header */}
-          <header className="flex items-center justify-between p-4 border-b border-border/20 bg-background/95 backdrop-blur-sm">
+          <header className="flex items-center justify-between p-4 border-b border-border/30 bg-gradient-to-r from-background/95 via-background/98 to-muted/5 backdrop-blur-md shadow-sm">
             <div className="flex items-center gap-3">
               {selectedAgent && (
-                <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${getAgentColor(selectedAgent.agent_type)} flex items-center justify-center`}>
+                <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${getAgentColor(selectedAgent.agent_type)} flex items-center justify-center shadow-lg ring-2 ring-white/20 dark:ring-black/20`}>
                   {React.createElement(getAgentIcon(selectedAgent.agent_type), { className: "h-4 w-4 text-white" })}
                 </div>
               )}
@@ -469,37 +632,60 @@ export default function ChatPage() {
             </div>
             
             <div className="flex items-center gap-2">
+              {/* User Info */}
+              <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground">
+                <span>Welcome, {user?.full_name || user?.username}</span>
+              </div>
+              
               {/* Agent Selector Button */}
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setShowAgentSelector(!showAgentSelector)}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 bg-gradient-to-r from-background to-muted/30 border-border/50 hover:border-primary/30 hover:bg-gradient-to-r hover:from-primary/5 hover:to-primary/10 transition-all duration-200"
               >
                 <Brain className="h-4 w-4" />
                 Agents
                 <ChevronDown className={`h-3 w-3 transition-transform ${showAgentSelector ? 'rotate-180' : ''}`} />
               </Button>
               
+              {/* Settings */}
+              <Link href="/auth">
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </Link>
+              
+              {/* Logout */}
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={logout}
+                className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                title="Logout"
+              >
+                <LogOut className="h-4 w-4" />
+              </Button>
+              
               {/* Connection Status */}
               <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs ${
-                !isOnline ? 'bg-red-100 text-red-700' : connectionError ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'
+                !isOnline ? 'bg-red-100 text-red-700' : error ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'
               }`}>
                 {!isOnline ? <WifiOff className="h-3 w-3" /> : <Wifi className="h-3 w-3" />}
-                {!isOnline ? 'Offline' : connectionError ? 'Server Issue' : 'Connected'}
+                {!isOnline ? 'Offline' : error ? 'Issues' : 'Connected'}
               </div>
             </div>
           </header>
 
           {/* Agent Selector Dropdown */}
           {showAgentSelector && (
-            <div className="border-b border-border/20 bg-muted/20 p-4">
+            <div className="border-b border-border/30 bg-gradient-to-br from-muted/30 via-muted/20 to-background/50 backdrop-blur-sm p-4">
               <div className="max-w-4xl mx-auto">
                 <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-primary" />
                   Select an AI Agent
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                   {getOrderedUniqueAgents(agents).map((agent) => {
                     const IconComponent = getAgentIcon(agent.agent_type)
                     const isSelected = selectedAgent?.id === agent.id
@@ -507,8 +693,8 @@ export default function ChatPage() {
                     return (
                       <Card
                         key={agent.id}
-                        className={`p-4 cursor-pointer transition-all hover:shadow-md ${
-                          isSelected ? 'ring-2 ring-primary bg-primary/5' : 'hover:bg-muted/50'
+                        className={`p-4 cursor-pointer transition-all duration-300 hover:shadow-lg hover:shadow-primary/10 hover:-translate-y-1 ${
+                          isSelected ? 'ring-2 ring-primary bg-gradient-to-br from-primary/10 via-primary/5 to-background border-primary/20' : 'hover:bg-gradient-to-br hover:from-muted/50 hover:to-background/80 hover:border-primary/20'
                         }`}
                         onClick={() => {
                           setSelectedAgent(agent)
@@ -517,7 +703,7 @@ export default function ChatPage() {
                         }}
                       >
                         <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${getAgentColor(agent.agent_type)} flex items-center justify-center`}>
+                          <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${getAgentColor(agent.agent_type)} flex items-center justify-center shadow-lg ring-2 ring-white/20 dark:ring-black/20`}>
                             <IconComponent className="h-5 w-5 text-white" />
                           </div>
                           <div className="flex-1 min-w-0">
@@ -545,10 +731,10 @@ export default function ChatPage() {
                   </div>
                 )}
                 
-                {getOrderedUniqueAgents(agents).length > 0 && getOrderedUniqueAgents(agents).length < 3 && (
+                {getOrderedUniqueAgents(agents).length > 0 && getOrderedUniqueAgents(agents).length < 4 && (
                   <div className="text-center py-4 mt-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
                     <p className="text-sm text-yellow-700 dark:text-yellow-300 mb-2">
-                      {3 - getOrderedUniqueAgents(agents).length} agent(s) missing
+                      {4 - getOrderedUniqueAgents(agents).length} agent(s) missing
                     </p>
                     <Button onClick={createDemoAgents} disabled={isCreatingAgent} size="sm" variant="outline">
                       <Plus className="h-3 w-3 mr-1" />
@@ -556,6 +742,26 @@ export default function ChatPage() {
                     </Button>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Error Recovery */}
+          {error && (
+            <div className="p-4 border-b border-border/20">
+              <div className="max-w-4xl mx-auto">
+                <ErrorRecovery 
+                  error={error}
+                  onRetry={() => {
+                    setError(null)
+                    fetchAgents()
+                  }}
+                  onReset={() => {
+                    setError(null)
+                    setMessages([])
+                    setSelectedAgent(null)
+                  }}
+                />
               </div>
             </div>
           )}
@@ -568,7 +774,7 @@ export default function ChatPage() {
                 <div className="text-center py-12">
                   {selectedAgent ? (
                     <div className="space-y-6">
-                      <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${getAgentColor(selectedAgent.agent_type)} flex items-center justify-center mx-auto shadow-lg`}>
+                      <div className={`w-20 h-20 rounded-3xl bg-gradient-to-br ${getAgentColor(selectedAgent.agent_type)} flex items-center justify-center mx-auto shadow-2xl ring-4 ring-white/20 dark:ring-black/20 animate-pulse`}>
                         {React.createElement(getAgentIcon(selectedAgent.agent_type), { className: "h-10 w-10 text-white" })}
                       </div>
                       <div>
@@ -580,7 +786,7 @@ export default function ChatPage() {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-w-2xl mx-auto">
                         {selectedAgent.agent_type === 'math' && (
                           <>
-                            <Card className="p-4 hover:bg-muted/50 cursor-pointer transition-colors" onClick={() => {
+                            <Card className="p-4 hover:bg-gradient-to-br hover:from-blue-50 hover:to-cyan-50 dark:hover:from-blue-950/30 dark:hover:to-cyan-950/30 cursor-pointer transition-all duration-300 hover:shadow-md hover:border-blue-200 dark:hover:border-blue-800" onClick={() => {
                               setInputMessage("Calculate 15 * 24")
                               setTimeout(() => inputRef.current?.focus(), 100)
                             }}>
@@ -588,7 +794,7 @@ export default function ChatPage() {
                               <p className="text-sm font-medium">Math Problems</p>
                               <p className="text-xs text-muted-foreground">Calculate 15 × 24</p>
                             </Card>
-                            <Card className="p-4 hover:bg-muted/50 cursor-pointer transition-colors" onClick={() => {
+                            <Card className="p-4 hover:bg-gradient-to-br hover:from-purple-50 hover:to-pink-50 dark:hover:from-purple-950/30 dark:hover:to-pink-950/30 cursor-pointer transition-all duration-300 hover:shadow-md hover:border-purple-200 dark:hover:border-purple-800" onClick={() => {
                               setInputMessage("What's the square root of 144?")
                               setTimeout(() => inputRef.current?.focus(), 100)
                             }}>
@@ -596,7 +802,7 @@ export default function ChatPage() {
                               <p className="text-sm font-medium">Square Roots</p>
                               <p className="text-xs text-muted-foreground">√144 = ?</p>
                             </Card>
-                            <Card className="p-4 hover:bg-muted/50 cursor-pointer transition-colors" onClick={() => {
+                            <Card className="p-4 hover:bg-gradient-to-br hover:from-green-50 hover:to-emerald-50 dark:hover:from-green-950/30 dark:hover:to-emerald-950/30 cursor-pointer transition-all duration-300 hover:shadow-md hover:border-green-200 dark:hover:border-green-800" onClick={() => {
                               setInputMessage("Add 25 and 37")
                               setTimeout(() => inputRef.current?.focus(), 100)
                             }}>
@@ -608,7 +814,7 @@ export default function ChatPage() {
                         )}
                         {selectedAgent.agent_type === 'intelligent' && (
                           <>
-                            <Card className="p-4 hover:bg-muted/50 cursor-pointer transition-colors" onClick={() => {
+                            <Card className="p-4 hover:bg-gradient-to-br hover:from-blue-50 hover:to-indigo-50 dark:hover:from-blue-950/30 dark:hover:to-indigo-950/30 cursor-pointer transition-all duration-300 hover:shadow-md hover:border-blue-200 dark:hover:border-blue-800" onClick={() => {
                               setInputMessage("What's the weather in Tokyo?")
                               setTimeout(() => inputRef.current?.focus(), 100)
                             }}>
@@ -616,7 +822,7 @@ export default function ChatPage() {
                               <p className="text-sm font-medium">Weather Info</p>
                               <p className="text-xs text-muted-foreground">Tokyo weather</p>
                             </Card>
-                            <Card className="p-4 hover:bg-muted/50 cursor-pointer transition-colors" onClick={() => {
+                            <Card className="p-4 hover:bg-gradient-to-br hover:from-purple-50 hover:to-violet-50 dark:hover:from-purple-950/30 dark:hover:to-violet-950/30 cursor-pointer transition-all duration-300 hover:shadow-md hover:border-purple-200 dark:hover:border-purple-800" onClick={() => {
                               setInputMessage("Search for latest AI news")
                               setTimeout(() => inputRef.current?.focus(), 100)
                             }}>
@@ -624,7 +830,7 @@ export default function ChatPage() {
                               <p className="text-sm font-medium">Web Search</p>
                               <p className="text-xs text-muted-foreground">Latest AI news</p>
                             </Card>
-                            <Card className="p-4 hover:bg-muted/50 cursor-pointer transition-colors" onClick={() => {
+                            <Card className="p-4 hover:bg-gradient-to-br hover:from-green-50 hover:to-teal-50 dark:hover:from-green-950/30 dark:hover:to-teal-950/30 cursor-pointer transition-all duration-300 hover:shadow-md hover:border-green-200 dark:hover:border-green-800" onClick={() => {
                               setInputMessage("Tell me about today's headlines")
                               setTimeout(() => inputRef.current?.focus(), 100)
                             }}>
@@ -636,7 +842,7 @@ export default function ChatPage() {
                         )}
                         {selectedAgent.agent_type === 'autonomous' && (
                           <>
-                            <Card className="p-4 hover:bg-muted/50 cursor-pointer transition-colors" onClick={() => {
+                            <Card className="p-4 hover:bg-gradient-to-br hover:from-purple-50 hover:to-pink-50 dark:hover:from-purple-950/30 dark:hover:to-pink-950/30 cursor-pointer transition-all duration-300 hover:shadow-md hover:border-purple-200 dark:hover:border-purple-800" onClick={() => {
                               setInputMessage("Help me plan a project")
                               setTimeout(() => inputRef.current?.focus(), 100)
                             }}>
@@ -644,7 +850,7 @@ export default function ChatPage() {
                               <p className="text-sm font-medium">Project Planning</p>
                               <p className="text-xs text-muted-foreground">Strategic thinking</p>
                             </Card>
-                            <Card className="p-4 hover:bg-muted/50 cursor-pointer transition-colors" onClick={() => {
+                            <Card className="p-4 hover:bg-gradient-to-br hover:from-yellow-50 hover:to-amber-50 dark:hover:from-yellow-950/30 dark:hover:to-amber-950/30 cursor-pointer transition-all duration-300 hover:shadow-md hover:border-yellow-200 dark:hover:border-yellow-800" onClick={() => {
                               setInputMessage("Analyze this business idea")
                               setTimeout(() => inputRef.current?.focus(), 100)
                             }}>
@@ -652,13 +858,41 @@ export default function ChatPage() {
                               <p className="text-sm font-medium">Analysis</p>
                               <p className="text-xs text-muted-foreground">Deep insights</p>
                             </Card>
-                            <Card className="p-4 hover:bg-muted/50 cursor-pointer transition-colors" onClick={() => {
+                            <Card className="p-4 hover:bg-gradient-to-br hover:from-orange-50 hover:to-red-50 dark:hover:from-orange-950/30 dark:hover:to-red-950/30 cursor-pointer transition-all duration-300 hover:shadow-md hover:border-orange-200 dark:hover:border-orange-800" onClick={() => {
                               setInputMessage("What should I consider for launching a startup?")
                               setTimeout(() => inputRef.current?.focus(), 100)
                             }}>
                               <Zap className="h-5 w-5 text-orange-500 mb-2" />
                               <p className="text-sm font-medium">Research</p>
                               <p className="text-xs text-muted-foreground">Comprehensive research</p>
+                            </Card>
+                          </>
+                        )}
+                        {selectedAgent.agent_type === 'researcher' && (
+                          <>
+                            <Card className="p-4 hover:bg-gradient-to-br hover:from-orange-50 hover:to-red-50 dark:hover:from-orange-950/30 dark:hover:to-red-950/30 cursor-pointer transition-all duration-300 hover:shadow-md hover:border-orange-200 dark:hover:border-orange-800" onClick={() => {
+                              setInputMessage("Research machine learning algorithms")
+                              setTimeout(() => inputRef.current?.focus(), 100)
+                            }}>
+                              <GraduationCap className="h-5 w-5 text-orange-500 mb-2" />
+                              <p className="text-sm font-medium">Full Research</p>
+                              <p className="text-xs text-muted-foreground">Complete research workflow</p>
+                            </Card>
+                            <Card className="p-4 hover:bg-gradient-to-br hover:from-blue-50 hover:to-indigo-50 dark:hover:from-blue-950/30 dark:hover:to-indigo-950/30 cursor-pointer transition-all duration-300 hover:shadow-md hover:border-blue-200 dark:hover:border-blue-800" onClick={() => {
+                              setInputMessage("Find papers on neural networks")
+                              setTimeout(() => inputRef.current?.focus(), 100)
+                            }}>
+                              <Search className="h-5 w-5 text-blue-500 mb-2" />
+                              <p className="text-sm font-medium">Paper Search</p>
+                              <p className="text-xs text-muted-foreground">Find academic papers</p>
+                            </Card>
+                            <Card className="p-4 hover:bg-gradient-to-br hover:from-purple-50 hover:to-violet-50 dark:hover:from-purple-950/30 dark:hover:to-violet-950/30 cursor-pointer transition-all duration-300 hover:shadow-md hover:border-purple-200 dark:hover:border-purple-800" onClick={() => {
+                              setInputMessage("Analyze literature on artificial intelligence")
+                              setTimeout(() => inputRef.current?.focus(), 100)
+                            }}>
+                              <Code className="h-5 w-5 text-purple-500 mb-2" />
+                              <p className="text-sm font-medium">Literature Analysis</p>
+                              <p className="text-xs text-muted-foreground">Academic analysis</p>
                             </Card>
                           </>
                         )}
@@ -686,7 +920,7 @@ export default function ChatPage() {
               {messages.map((message, index) => (
                 <div
                   key={index}
-                  className={`flex gap-4 ${message.type === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
+                  className={`flex gap-4 animate-message-fade-in ${message.type === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
                 >
                   <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
                     message.type === 'user'
@@ -706,7 +940,7 @@ export default function ChatPage() {
                   <div className={`max-w-4xl ${message.type === 'user' ? 'ml-auto' : 'mr-auto'}`}>
                     <div className={`px-6 py-4 ${
                       message.type === 'user'
-                        ? 'bg-primary text-primary-foreground rounded-2xl'
+                        ? 'bg-gradient-to-r from-primary to-primary/90 text-primary-foreground rounded-2xl shadow-lg'
                         : 'bg-transparent'
                     }`}>
                       <div className={`${
@@ -748,13 +982,13 @@ export default function ChatPage() {
                     }
                   </div>
                   <div className="bg-transparent px-6 py-4">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
                       <div className="flex gap-1">
-                        <div className="h-2 w-2 bg-primary rounded-full animate-bounce"></div>
-                        <div className="h-2 w-2 bg-primary rounded-full animate-bounce delay-100"></div>
-                        <div className="h-2 w-2 bg-primary rounded-full animate-bounce delay-200"></div>
+                        <div className="h-2 w-2 bg-primary rounded-full animate-typing-dots"></div>
+                        <div className="h-2 w-2 bg-primary rounded-full animate-typing-dots" style={{animationDelay: '0.2s'}}></div>
+                        <div className="h-2 w-2 bg-primary rounded-full animate-typing-dots" style={{animationDelay: '0.4s'}}></div>
                       </div>
-                      <span className="text-[15px] text-muted-foreground font-normal">Thinking...</span>
+                      <span className="text-[15px] text-muted-foreground font-normal animate-pulse">Thinking...</span>
                     </div>
                   </div>
                 </div>
@@ -765,7 +999,7 @@ export default function ChatPage() {
           </div>
 
           {/* Input Area - Fixed at Bottom */}
-          <div className="border-t border-border/20 p-4 bg-background">
+          <div className="border-t border-border/30 p-4 bg-gradient-to-r from-background/95 via-background to-muted/5 backdrop-blur-md">
             <div className="max-w-4xl mx-auto">
               <div className="flex gap-3 items-end">
                 <div className="flex-1 relative">
@@ -776,7 +1010,7 @@ export default function ChatPage() {
                     onKeyDown={handleKeyPress}
                     placeholder={selectedAgent ? `Message ${selectedAgent.name}...` : 'Choose an agent first...'}
                     disabled={!selectedAgent || isLoading}
-                    className="w-full resize-none border border-border rounded-2xl px-4 py-3 pr-12 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50 max-h-32"
+                    className="w-full resize-none border border-border/50 rounded-2xl px-4 py-3 pr-12 bg-gradient-to-r from-background to-muted/10 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/30 focus:bg-background disabled:opacity-50 max-h-32 transition-all duration-200 shadow-sm hover:shadow-md"
                     rows={1}
                     style={{ minHeight: '48px' }}
                     onInput={(e) => {
@@ -789,7 +1023,7 @@ export default function ChatPage() {
                     onClick={sendMessage}
                     disabled={!selectedAgent || !inputMessage.trim() || isLoading}
                     size="sm"
-                    className="absolute right-2 bottom-2 w-8 h-8 p-0 rounded-lg"
+                    className="absolute right-2 bottom-2 w-8 h-8 p-0 rounded-xl bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-md hover:shadow-lg transition-all duration-200"
                   >
                     {isLoading ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -807,5 +1041,18 @@ export default function ChatPage() {
         </div>
       </div>
     </ErrorBoundary>
+  )
+}
+
+// Export with authentication protection
+export default function ChatPage() {
+  return (
+    <ProtectedRoute fallback={
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex items-center justify-center p-4">
+        <AuthenticationErrorCard onLogin={() => window.location.href = '/auth'} />
+      </div>
+    }>
+      <ChatPageContent />
+    </ProtectedRoute>
   )
 }

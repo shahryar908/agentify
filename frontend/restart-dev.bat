@@ -1,0 +1,9 @@
+@echo off
+echo Stopping all Node.js processes...
+taskkill /f /im node.exe >nul 2>&1
+
+echo Waiting 3 seconds...
+timeout /t 3 /nobreak >nul
+
+echo Starting development server...
+npm run dev

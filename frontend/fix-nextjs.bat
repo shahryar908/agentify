@@ -1,0 +1,3 @@
+@echo off
+echo Fixing Next.js permissions and cache issues...
+cd /d C:\Users\User\Ai_agents\frontend

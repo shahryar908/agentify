@@ -155,157 +155,187 @@ export default function BlogsPage() {
   const displayBlogs = filteredBlogs.length > 0 ? filteredBlogs : blogs
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-      {/* Background Elements */}
-      <div className="absolute inset-0 bg-grid-white/[0.02] bg-[size:60px_60px]" />
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-gradient-to-r from-primary/10 via-purple-500/10 to-cyan-500/10 rounded-full blur-3xl opacity-30" />
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/5">
+      {/* Enhanced Background Elements */}
+      <div className="absolute inset-0">
+        <div className="absolute inset-0 bg-grid-white/[0.02] bg-[size:60px_60px]" />
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/[0.02] via-purple-500/[0.02] to-pink-500/[0.02]" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[500px] bg-gradient-to-r from-blue-500/[0.08] via-purple-500/[0.08] to-pink-500/[0.08] rounded-full blur-3xl opacity-40" />
+      </div>
       
-      <div className="container relative py-12">
-        {/* Header */}
-        <div className="text-center mb-16">
+      <div className="container relative py-16">
+        {/* Enhanced Header */}
+        <div className="text-center mb-20">
           {/* Badge */}
-          <div className="inline-flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full text-sm font-medium mb-6">
-            <Sparkles className="h-4 w-4" />
-            Development Tutorials
+          <div className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20 px-6 py-3 rounded-full text-sm font-medium mb-8 border border-blue-200/50 dark:border-blue-800/30">
+            <BookOpen className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            <span className="text-blue-800 dark:text-blue-300">Development Tutorials & Insights</span>
           </div>
           
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-6">
-            My Agent Building
-            <span className="block bg-gradient-to-r from-primary via-purple-500 to-cyan-500 bg-clip-text text-transparent">
+          <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-8 leading-[0.9]">
+            <span className="bg-gradient-to-r from-gray-900 via-blue-700 to-purple-700 dark:from-white dark:via-blue-300 dark:to-purple-300 bg-clip-text text-transparent">
+              AI Agent Building
+            </span>
+            <br />
+            <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
               Journey & Tutorials
             </span>
           </h1>
           
-          <p className="text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
+          <p className="text-xl lg:text-2xl text-muted-foreground max-w-4xl mx-auto leading-relaxed mb-8">
             Step-by-step guides showing exactly how I built each AI agent. Learn from my process, 
-            see the code, understand the challenges, and discover the solutions I found.
+            see the code, understand the challenges, and discover the solutions I found along the way.
           </p>
+
+          {/* Additional info badges */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-6 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              <span>Updated Weekly</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <BookOpen className="h-4 w-4 text-blue-500" />
+              <span>Complete Source Code</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-purple-500" />
+              <span>Real-World Examples</span>
+            </div>
+          </div>
         </div>
 
-        {/* Search and Filters */}
-        <div className="mb-12">
-          <Card className="p-6 bg-card/50 backdrop-blur-sm border border-border/50 shadow-xl">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              {/* Search */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                <input
-                  type="text"
-                  placeholder="Search tutorials..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-border rounded-xl bg-background/50 backdrop-blur-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all"
-                />
+        {/* Enhanced Search and Filters */}
+        <div className="mb-16">
+          <Card className="p-8 bg-gradient-to-br from-white via-white to-gray-50/50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800/50 backdrop-blur-sm border-0 shadow-2xl shadow-black/5 relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-500/[0.02] via-purple-500/[0.02] to-pink-500/[0.02]" />
+            <div className="relative">
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">Find Your Perfect Tutorial</h2>
+                <p className="text-muted-foreground">Search through detailed guides and filter by complexity or agent type</p>
               </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                {/* Search */}
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-muted-foreground h-5 w-5" />
+                  <input
+                    type="text"
+                    placeholder="Search tutorials..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 dark:border-gray-700 rounded-xl bg-white/50 dark:bg-gray-900/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all font-medium"
+                  />
+                </div>
 
-              {/* Category Filter */}
-              <div className="relative">
-                <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-border rounded-xl bg-background/50 backdrop-blur-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all"
-                >
-                  <option value="">All Categories</option>
-                  <option value="Tutorial">Tutorial</option>
-                  <option value="Advanced">Advanced</option>
-                  <option value="Case Study">Case Study</option>
-                  <option value="Tips & Tricks">Tips & Tricks</option>
-                </select>
-              </div>
-
-              {/* Agent Type Filter */}
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                <select
-                  value={selectedAgentType}
-                  onChange={(e) => setSelectedAgentType(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-border rounded-xl bg-background/50 backdrop-blur-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all"
-                >
-                  <option value="">All Agent Types</option>
-                  <option value="math">Math Agent</option>
-                  <option value="intelligent">Web Agent</option>
-                  <option value="autonomous">Autonomous Agent</option>
-                </select>
-              </div>
-
-              {/* Clear Filters */}
-              <Button
-                variant="outline"
-                onClick={clearFilters}
-                disabled={!searchTerm && !selectedCategory && !selectedTag && !selectedAgentType}
-                className="h-12 border-2 hover:border-primary/50"
-              >
-                Clear Filters
-              </Button>
-            </div>
-
-            {/* View Controls */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-muted-foreground">
-                  {displayBlogs.length} tutorial{displayBlogs.length !== 1 ? 's' : ''} found
-                </span>
-                
-                {/* Sort Controls */}
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Sort by:</span>
+                {/* Category Filter */}
+                <div className="relative">
+                  <Filter className="absolute left-4 top-1/2 transform -translate-y-1/2 text-muted-foreground h-5 w-5" />
                   <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    className="text-sm bg-background/50 border border-border rounded-lg px-2 py-1"
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 dark:border-gray-700 rounded-xl bg-white/50 dark:bg-gray-900/50 text-foreground focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all font-medium"
                   >
-                    <option value="createdAt">Date</option>
-                    <option value="views">Views</option>
-                    <option value="likes">Likes</option>
-                    <option value="title">Title</option>
+                    <option value="">All Categories</option>
+                    <option value="Tutorial">Tutorial</option>
+                    <option value="Advanced">Advanced</option>
+                    <option value="Case Study">Case Study</option>
+                    <option value="Tips & Tricks">Tips & Tricks</option>
                   </select>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                    className="h-8 w-8 p-0"
-                  >
-                    <TrendingUp className={`h-4 w-4 transition-transform ${sortOrder === 'desc' ? 'rotate-180' : ''}`} />
-                  </Button>
                 </div>
+
+                {/* Agent Type Filter */}
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 transform -translate-y-1/2 text-muted-foreground h-5 w-5" />
+                  <select
+                    value={selectedAgentType}
+                    onChange={(e) => setSelectedAgentType(e.target.value)}
+                    className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 dark:border-gray-700 rounded-xl bg-white/50 dark:bg-gray-900/50 text-foreground focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500/50 transition-all font-medium"
+                  >
+                    <option value="">All Agent Types</option>
+                    <option value="math">Math Agent</option>
+                    <option value="intelligent">Web Agent</option>
+                    <option value="autonomous">Autonomous Agent</option>
+                  </select>
+                </div>
+
+                {/* Clear Filters */}
+                <Button
+                  variant="outline"
+                  onClick={clearFilters}
+                  disabled={!searchTerm && !selectedCategory && !selectedTag && !selectedAgentType}
+                  className="h-16 px-6 border-2 border-red-200 hover:border-red-300 dark:border-red-800 dark:hover:border-red-700 bg-white/50 dark:bg-gray-900/50 font-semibold text-red-600 dark:text-red-400 hover:shadow-lg hover:shadow-red-500/10 transition-all duration-300"
+                >
+                  Clear Filters
+                </Button>
               </div>
 
-              <div className="flex items-center gap-4">
-                {/* Admin Controls */}
-                <div className="flex items-center gap-2">
-                  <Link href="/blogs/manage">
-                    <Button variant="outline" className="border-2">
-                      <Settings className="h-4 w-4 mr-2" />
-                      Manage
+              {/* View Controls */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-muted-foreground">
+                    {displayBlogs.length} tutorial{displayBlogs.length !== 1 ? 's' : ''} found
+                  </span>
+                  
+                  {/* Sort Controls */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Sort by:</span>
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value)}
+                      className="text-sm bg-background/50 border border-border rounded-lg px-2 py-1"
+                    >
+                      <option value="createdAt">Date</option>
+                      <option value="views">Views</option>
+                      <option value="likes">Likes</option>
+                      <option value="title">Title</option>
+                    </select>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                      className="h-8 w-8 p-0"
+                    >
+                      <TrendingUp className={`h-4 w-4 transition-transform ${sortOrder === 'desc' ? 'rotate-180' : ''}`} />
                     </Button>
-                  </Link>
-                  <Link href="/blogs/new">
-                    <Button className="bg-gradient-to-r from-primary to-purple-500 hover:from-primary/90 hover:to-purple-500/90">
-                      <BookOpen className="h-4 w-4 mr-2" />
-                      Create Blog
-                    </Button>
-                  </Link>
+                  </div>
                 </div>
 
-                {/* View Mode Toggle */}
-                <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
-                  <Button
-                    variant={viewMode === 'grid' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setViewMode('grid')}
-                    className="h-8 w-8 p-0"
-                  >
-                    <Grid3X3 className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant={viewMode === 'list' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setViewMode('list')}
-                    className="h-8 w-8 p-0"
-                  >
-                    <List className="h-4 w-4" />
-                  </Button>
+                <div className="flex items-center gap-4">
+                  {/* Admin Controls */}
+                  <div className="flex items-center gap-2">
+                    <Link href="/blogs/manage">
+                      <Button variant="outline" className="border-2">
+                        <Settings className="h-4 w-4 mr-2" />
+                        Manage
+                      </Button>
+                    </Link>
+                    <Link href="/blogs/new">
+                      <Button className="bg-gradient-to-r from-primary to-purple-500 hover:from-primary/90 hover:to-purple-500/90">
+                        <BookOpen className="h-4 w-4 mr-2" />
+                        Create Blog
+                      </Button>
+                    </Link>
+                  </div>
+
+                  {/* View Mode Toggle */}
+                  <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
+                    <Button
+                      variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setViewMode('grid')}
+                      className="h-8 w-8 p-0"
+                    >
+                      <Grid3X3 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant={viewMode === 'list' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setViewMode('list')}
+                      className="h-8 w-8 p-0"
+                    >
+                      <List className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -483,27 +513,63 @@ export default function BlogsPage() {
           </div>
         )}
 
-        {/* Call to Action */}
-        <div className="text-center mt-20">
-          <div className="bg-gradient-to-r from-primary/5 via-purple-500/5 to-cyan-500/5 rounded-3xl p-8 border border-primary/10 max-w-4xl mx-auto">
-            <h3 className="text-2xl font-bold mb-4">Ready to Build Your Own Agents?</h3>
-            <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
-              Try out my live agents to see what's possible, then follow my tutorials to build your own. 
-              Each guide includes complete source code and detailed explanations.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link href="/chat">
-                <Button size="lg" className="bg-gradient-to-r from-primary to-purple-500 hover:from-primary/90 hover:to-purple-500/90">
-                  Try My Agents
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </Button>
-              </Link>
-              <Link href="/blogs/building-first-math-agent-tutorial">
-                <Button variant="outline" size="lg" className="border-2 hover:border-primary/50">
-                  <BookOpen className="h-4 w-4 mr-2" />
-                  Start Learning
-                </Button>
-              </Link>
+        {/* Enhanced Call to Action */}
+        <div className="text-center mt-24 mb-12">
+          <div className="bg-gradient-to-br from-white via-blue-50/30 to-purple-50/50 dark:from-gray-900 dark:via-blue-950/20 dark:to-purple-950/20 rounded-3xl p-12 border-0 shadow-2xl shadow-blue-500/10 max-w-5xl mx-auto relative overflow-hidden backdrop-blur-sm">
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-500/[0.03] via-purple-500/[0.03] to-pink-500/[0.03]" />
+            <div className="relative">
+              <div className="mb-8">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-500/25">
+                  <Sparkles className="h-8 w-8 text-white" />
+                </div>
+                <h3 className="text-4xl lg:text-5xl font-bold mb-4 bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-200 bg-clip-text text-transparent">
+                  Ready to Build Your Own Agents?
+                </h3>
+                <p className="text-xl text-muted-foreground mb-8 max-w-3xl mx-auto leading-relaxed">
+                  Try out my live agents to see what's possible, then follow my comprehensive tutorials to build your own. 
+                  Each guide includes complete source code, detailed explanations, and real-world examples.
+                </p>
+              </div>
+              
+              <div className="flex flex-col sm:flex-row gap-6 justify-center mb-8">
+                <Link href="/chat">
+                  <Button size="lg" className="px-10 py-4 text-lg font-semibold bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 transition-all duration-300 hover:-translate-y-0.5">
+                    <ArrowRight className="h-6 w-6 mr-3" />
+                    Try My Live Agents
+                  </Button>
+                </Link>
+                <Link href="/blogs/building-first-math-agent-tutorial">
+                  <Button variant="outline" size="lg" className="px-10 py-4 text-lg font-semibold border-2 border-purple-200 hover:border-purple-300 dark:border-purple-800 dark:hover:border-purple-700 bg-white/50 dark:bg-gray-900/50 hover:shadow-lg hover:shadow-purple-500/10 transition-all duration-300 hover:-translate-y-0.5">
+                    <BookOpen className="h-6 w-6 mr-3 text-purple-600 dark:text-purple-400" />
+                    Start Learning
+                  </Button>
+                </Link>
+              </div>
+
+              {/* Feature highlights */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+                <div className="p-4">
+                  <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mx-auto mb-3">
+                    <BookOpen className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <h4 className="font-semibold mb-2 text-gray-900 dark:text-white">Complete Guides</h4>
+                  <p className="text-sm text-muted-foreground">Step-by-step tutorials with full code</p>
+                </div>
+                <div className="p-4">
+                  <div className="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center mx-auto mb-3">
+                    <Eye className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <h4 className="font-semibold mb-2 text-gray-900 dark:text-white">Live Examples</h4>
+                  <p className="text-sm text-muted-foreground">Interactive agents you can test</p>
+                </div>
+                <div className="p-4">
+                  <div className="w-12 h-12 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center mx-auto mb-3">
+                    <Heart className="h-6 w-6 text-green-600 dark:text-green-400" />
+                  </div>
+                  <h4 className="font-semibold mb-2 text-gray-900 dark:text-white">Free & Open</h4>
+                  <p className="text-sm text-muted-foreground">All content is completely free</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
